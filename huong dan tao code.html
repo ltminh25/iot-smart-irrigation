@@ -1,0 +1,573 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}</style><style>:root{color-scheme:light dark;--md-bg:#fff;--md-text:rgba(0,0,0,.8);--md-muted:rgba(0,0,0,.6);--md-fill:rgba(0,0,0,.04);--md-fill-strong:rgba(0,0,0,.06);--md-rule:rgba(0,0,0,.1);--md-rule-strong:rgba(0,0,0,.16);--md-link:hsl(210 100% 45%)}@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){--md-bg:#0d0d0d;--md-text:rgba(255,255,255,.85);--md-muted:rgba(255,255,255,.6);--md-fill:rgba(255,255,255,.06);--md-fill-strong:rgba(255,255,255,.09);--md-rule:rgba(255,255,255,.14);--md-rule-strong:rgba(255,255,255,.22);--md-link:hsl(210 100% 72%)}}:root[data-theme="dark"]{color-scheme:dark;--md-bg:#0d0d0d;--md-text:rgba(255,255,255,.85);--md-muted:rgba(255,255,255,.6);--md-fill:rgba(255,255,255,.06);--md-fill-strong:rgba(255,255,255,.09);--md-rule:rgba(255,255,255,.14);--md-rule-strong:rgba(255,255,255,.22);--md-link:hsl(210 100% 72%)}:root[data-theme="light"]{color-scheme:light}@media print{:root,:root[data-theme="dark"]{color-scheme:light;--md-bg:#fff;--md-text:rgba(0,0,0,.8);--md-muted:rgba(0,0,0,.6);--md-fill:rgba(0,0,0,.04);--md-fill-strong:rgba(0,0,0,.06);--md-rule:rgba(0,0,0,.1);--md-rule-strong:rgba(0,0,0,.16);--md-link:hsl(210 100% 45%)}}body{background:var(--md-bg);color:var(--md-text);max-width:720px;margin:0 auto;padding:32px;display:flex;flex-direction:column;gap:10px;font:14px/1.55 -apple-system,BlinkMacSystemFont,'SF Pro','Segoe UI',sans-serif;overflow-wrap:break-word}body>:first-child{margin-top:0}h1,h2,h3,h4,h5,h6{margin:6px 0 0;line-height:1.25;font-weight:600;text-wrap:balance}h1{font-size:1.35em}h2{font-size:1.15em;color:var(--md-muted)}h3,h4,h5,h6{font-size:1em}p,ul,ol,blockquote,table,pre,hr{margin:0}strong{font-weight:600}a{color:var(--md-link);text-decoration:none}a:hover{text-decoration:underline}ul,ol{display:flex;flex-direction:column;gap:6px;padding-left:22px}ul{list-style:disc}ol{list-style:decimal}:is(li,td,th)>*+:is(p,ul,ol,blockquote){margin-top:6px}blockquote{display:flex;flex-direction:column;gap:10px;border-left:2px solid var(--md-rule);padding-left:10px;color:var(--md-muted)}:not(pre)>code{background:var(--md-fill);padding:1px 3px;border-radius:4px;font:.92em 'SF Mono',ui-monospace,Menlo,Consolas,monospace}a>code{background:none;color:inherit}pre{background:var(--md-fill);padding:10px 12px;border-radius:6px;overflow-x:auto;font:12px/1.5 'SF Mono',ui-monospace,Menlo,Consolas,monospace;margin-block:4px}pre code{background:none;padding:0;font:inherit}table{width:100%;border-collapse:separate;border-spacing:2px;font:inherit}th,td{padding:6px 8px;border-radius:3px;text-align:left;vertical-align:top}th{background:var(--md-fill-strong);font-weight:600}td{background:var(--md-fill)}:is(th,td) :not(pre)>code{background:transparent}hr{border:0;border-top:1px solid var(--md-rule-strong);margin-block:10px}img{max-width:100%;height:auto;border-radius:4px}</style>
+</head><body>
+<h1>Tài liệu hướng dẫn AI Generate Code</h1>
+<h2>Hệ thống Smart Plant Care – IoT Chăm sóc cây tự động</h2>
+<blockquote>
+<p>Tài liệu này dùng để đưa cho một AI coding assistant (Claude Code, Cursor, Copilot Workspace...) để nó generate toàn bộ backend + frontend cho đồ án. Copy nguyên khối &quot;PROMPT TỔNG HỢP&quot; ở mục 14 nếu chỉ cần 1 prompt duy nhất; hoặc đưa cả file này làm context rồi yêu cầu build từng phần theo mục 13 (thứ tự triển khai).</p>
+</blockquote>
+<hr>
+<h2>1. Bối cảnh &amp; mục tiêu</h2>
+<p>Xây dựng hệ thống IoT giám sát – điều khiển chăm sóc cây tự động: 4 loại cảm biến (ánh sáng, độ ẩm đất, nhiệt độ/độ ẩm không khí, mưa), 2 cơ cấu chấp hành (mái che servo, bơm relay), giao tiếp qua MQTT, backend Python xử lý nghiệp vụ + REST API + realtime, frontend React làm dashboard quản trị. Yêu cầu bắt buộc: auth JWT, RBAC 3 vai trò, quản lý vòng đời thiết bị, rule engine cảnh báo/tự động hoá, lịch sử telemetry, audit log.</p>
+<p><strong>AI khi generate code phải tuân thủ đúng schema, endpoint, luật nghiệp vụ mô tả trong tài liệu này — không tự ý đổi tên field, đổi role, hay bỏ bớt kiểm tra quyền.</strong></p>
+<hr>
+<h2>2. Tech stack bắt buộc</h2>
+<p><strong>Backend (Python):</strong></p>
+<ul>
+<li>Framework: <strong>FastAPI</strong> (async, tự sinh OpenAPI docs)</li>
+<li>ORM: <strong>SQLAlchemy 2.x</strong> (async) + <strong>Alembic</strong> cho migration</li>
+<li>DB: <strong>PostgreSQL</strong></li>
+<li>MQTT client: <strong>paho-mqtt</strong> hoặc <strong>gmqtt</strong> (async), chạy như background service trong FastAPI (lifespan event)</li>
+<li>Realtime tới frontend: <strong>WebSocket</strong> native của FastAPI (<code>fastapi.WebSocket</code>), không dùng Socket.IO ở backend để tránh phụ thuộc thêm — nếu cần Socket.IO thì dùng <code>python-socketio</code> ASGI app mount vào FastAPI</li>
+<li>Auth: <strong>JWT</strong> (<code>python-jose</code> hoặc <code>pyjwt</code>) access token + refresh token, hash password bằng <strong>passlib[bcrypt]</strong></li>
+<li>Validation: <strong>Pydantic v2</strong> cho toàn bộ request/response schema</li>
+<li>Background jobs (heartbeat timeout check, retry lệnh): <strong>APScheduler</strong> hoặc <code>asyncio</code> task chạy nền</li>
+<li>Test: <strong>pytest</strong> + <strong>httpx.AsyncClient</strong></li>
+<li>Container: Docker + docker-compose (backend, postgres, mosquitto)</li>
+</ul>
+<p><strong>Frontend (React):</strong></p>
+<ul>
+<li><strong>React 18 + TypeScript</strong>, Vite làm build tool</li>
+<li>Routing: <strong>react-router-dom</strong></li>
+<li>State/data fetching: <strong>TanStack Query (React Query)</strong> + <strong>axios</strong></li>
+<li>Realtime: <strong>native WebSocket API</strong> hoặc <strong>socket.io-client</strong> (khớp với lựa chọn backend)</li>
+<li>Chart: <strong>Recharts</strong></li>
+<li>UI kit: chọn 1 trong (MUI / Ant Design / Tailwind + shadcn/ui) — AI có thể chọn Ant Design vì có sẵn Table/Form/RBAC menu phù hợp dashboard quản trị</li>
+<li>Auth state: Context API hoặc Zustand, lưu access token trong memory, refresh token trong httpOnly cookie (khuyến nghị) hoặc localStorage nếu đơn giản hoá cho đồ án</li>
+</ul>
+<hr>
+<h2>3. Cấu trúc thư mục</h2>
+<pre><code>plant-care-iot/
+├── backend/
+│   ├── app/
+│   │   ├── main.py                # FastAPI app, lifespan (start MQTT client, scheduler)
+│   │   ├── core/
+│   │   │   ├── config.py          # đọc .env (pydantic-settings)
+│   │   │   ├── security.py        # hash password, tạo/verify JWT
+│   │   │   └── deps.py            # dependency: get_current_user, require_role()
+│   │   ├── db/
+│   │   │   ├── session.py
+│   │   │   └── base.py
+│   │   ├── models/                # SQLAlchemy models: user, device, telemetry, command, alert, alert_rule, audit_log, device_lifecycle_log
+│   │   ├── schemas/                # Pydantic schemas tương ứng mỗi model (Create/Update/Read)
+│   │   ├── api/
+│   │   │   └── v1/
+│   │   │       ├── auth.py
+│   │   │       ├── users.py
+│   │   │       ├── devices.py
+│   │   │       ├── telemetry.py
+│   │   │       ├── commands.py
+│   │   │       ├── alerts.py
+│   │   │       └── audit.py
+│   │   ├── services/
+│   │   │   ├── mqtt_client.py     # subscribe telemetry/status/ack, publish command
+│   │   │   ├── rule_engine.py     # đánh giá alert_rules, sinh lệnh tự động / alert
+│   │   │   ├── device_service.py  # state machine vòng đời thiết bị
+│   │   │   ├── command_service.py # gửi lệnh, retry, timeout
+│   │   │   └── ws_manager.py      # quản lý các WebSocket connection, broadcast theo device/user
+│   │   └── migrations/            # Alembic
+│   ├── tests/
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── .env.example
+├── frontend/
+│   ├── src/
+│   │   ├── api/                   # axios instance + hàm gọi API theo resource
+│   │   ├── auth/                  # AuthContext, ProtectedRoute, useRole()
+│   │   ├── pages/                 # Login, Dashboard, DeviceDetail, DeviceManagement, UserManagement, Alerts, CommandHistory
+│   │   ├── components/
+│   │   ├── hooks/                 # useWebSocket, useTelemetry
+│   │   ├── types/
+│   │   └── App.tsx
+│   ├── package.json
+│   └── Dockerfile
+├── firmware/                       # ngoài phạm vi AI gen code phần này (C++/ESP32)
+├── database/
+│   └── init.sql
+├── deployment/
+│   └── docker-compose.yml          # backend + frontend + postgres + mosquitto
+└── .env.example
+</code></pre>
+<hr>
+<h2>4. Database schema</h2>
+<pre><code class="language-sql">CREATE TABLE roles (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(20) UNIQUE NOT NULL  -- admin | owner | viewer
+);
+
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username VARCHAR(50) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  email VARCHAR(120) UNIQUE NOT NULL,
+  role_id INT REFERENCES roles(id) NOT NULL,
+  status VARCHAR(20) DEFAULT &#39;active&#39;, -- active | locked
+  failed_login_count INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE devices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  device_uid VARCHAR(100) UNIQUE NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  owner_id UUID REFERENCES users(id) NOT NULL,
+  location VARCHAR(150),
+  status VARCHAR(20) DEFAULT &#39;registered&#39;, -- registered|provisioned|active|offline|fault|maintenance|decommissioned
+  firmware_version VARCHAR(20),
+  api_key VARCHAR(255) UNIQUE NOT NULL,
+  last_heartbeat_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE device_lifecycle_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  device_id UUID REFERENCES devices(id) NOT NULL,
+  from_state VARCHAR(20),
+  to_state VARCHAR(20) NOT NULL,
+  changed_by UUID REFERENCES users(id),
+  timestamp TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE telemetry (
+  id BIGSERIAL PRIMARY KEY,
+  device_id UUID REFERENCES devices(id) NOT NULL,
+  sensor_type VARCHAR(20) NOT NULL, -- light|soil|air_temp|air_humidity|rain|waterlevel
+  value NUMERIC NOT NULL,
+  unit VARCHAR(10),
+  timestamp TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX idx_telemetry_device_time ON telemetry(device_id, timestamp DESC);
+
+CREATE TABLE commands (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  command_id VARCHAR(50) UNIQUE NOT NULL,
+  device_id UUID REFERENCES devices(id) NOT NULL,
+  action VARCHAR(30) NOT NULL, -- pump_on|pump_off|curtain_open|curtain_close
+  payload JSONB,
+  issued_by UUID REFERENCES users(id),
+  status VARCHAR(20) DEFAULT &#39;pending&#39;, -- pending|executed|failed
+  issued_at TIMESTAMPTZ DEFAULT now(),
+  executed_at TIMESTAMPTZ
+);
+
+CREATE TABLE alert_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sensor_type VARCHAR(20),
+  condition VARCHAR(20), -- gt|lt|eq|...
+  threshold NUMERIC,
+  action VARCHAR(50),    -- ví dụ &#39;trigger_alert&#39;, &#39;auto_pump_on&#39;
+  enabled BOOLEAN DEFAULT true
+);
+
+CREATE TABLE alerts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  device_id UUID REFERENCES devices(id) NOT NULL,
+  rule_id UUID REFERENCES alert_rules(id),
+  message VARCHAR(255) NOT NULL,
+  severity VARCHAR(20) DEFAULT &#39;warning&#39;, -- info|warning|critical
+  status VARCHAR(20) DEFAULT &#39;open&#39;, -- open|acknowledged|resolved
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE audit_log (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  action VARCHAR(100) NOT NULL,
+  target VARCHAR(100),
+  timestamp TIMESTAMPTZ DEFAULT now()
+);
+</code></pre>
+<hr>
+<h2>5. RBAC – ma trận vai trò &amp; quyền</h2>
+<table>
+<thead>
+<tr>
+<th>Chức năng</th>
+<th style="text-align:center">Admin</th>
+<th style="text-align:center">Owner</th>
+<th style="text-align:center">Viewer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Quản lý user</td>
+<td style="text-align:center">✔</td>
+<td style="text-align:center">✘</td>
+<td style="text-align:center">✘</td>
+</tr>
+<tr>
+<td>Đăng ký thiết bị mới</td>
+<td style="text-align:center">✔</td>
+<td style="text-align:center">✔</td>
+<td style="text-align:center">✘</td>
+</tr>
+<tr>
+<td>Xem dữ liệu thiết bị của mình</td>
+<td style="text-align:center">✔</td>
+<td style="text-align:center">✔</td>
+<td style="text-align:center">✔</td>
+</tr>
+<tr>
+<td>Xem dữ liệu thiết bị của người khác</td>
+<td style="text-align:center">✔</td>
+<td style="text-align:center">✘</td>
+<td style="text-align:center">✘</td>
+</tr>
+<tr>
+<td>Gửi lệnh điều khiển</td>
+<td style="text-align:center">✔</td>
+<td style="text-align:center">✔</td>
+<td style="text-align:center">✘</td>
+</tr>
+<tr>
+<td>Cấu hình ngưỡng cảnh báo</td>
+<td style="text-align:center">✔</td>
+<td style="text-align:center">✔ (thiết bị của mình)</td>
+<td style="text-align:center">✘</td>
+</tr>
+<tr>
+<td>Khóa/decommission thiết bị</td>
+<td style="text-align:center">✔</td>
+<td style="text-align:center">✔ (thiết bị của mình)</td>
+<td style="text-align:center">✘</td>
+</tr>
+<tr>
+<td>Xem audit log</td>
+<td style="text-align:center">✔</td>
+<td style="text-align:center">✘</td>
+<td style="text-align:center">✘</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Yêu cầu implement bắt buộc:</strong></p>
+<ul>
+<li>Middleware/dependency <code>require_role(*roles)</code> áp dụng trên từng endpoint.</li>
+<li>Với owner: mọi endpoint liên quan device phải kiểm tra thêm <code>device.owner_id == current_user.id</code> (trừ admin).</li>
+<li>Không được chỉ ẩn nút trên UI — mọi kiểm tra quyền phải nằm ở backend, UI chỉ ẩn/hiện để trải nghiệm tốt hơn.</li>
+</ul>
+<hr>
+<h2>6. Authentication</h2>
+<ul>
+<li><code>POST /api/auth/register</code> — tạo user role mặc định <code>owner</code> (admin tạo qua <code>/api/users</code> nếu cần role khác).</li>
+<li><code>POST /api/auth/login</code> — verify bcrypt hash, trả <code>access_token</code> (hết hạn ~15 phút) + <code>refresh_token</code> (hết hạn dài hơn, ví dụ 7 ngày).</li>
+<li><code>POST /api/auth/refresh</code> — cấp access token mới từ refresh token hợp lệ.</li>
+<li><code>PUT /api/users/me/password</code> — đổi mật khẩu, yêu cầu mật khẩu cũ.</li>
+<li>Giới hạn đăng nhập sai: sau N lần sai (ví dụ 5), khóa tạm tài khoản (<code>status = locked</code>), ghi audit log.</li>
+<li>JWT payload tối thiểu: <code>{sub: user_id, role: role_name, exp}</code>.</li>
+</ul>
+<hr>
+<h2>7. Vòng đời thiết bị (state machine)</h2>
+<pre><code>Registered → Provisioned → Active → Offline/Fault → Maintenance → Decommissioned
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Trạng thái</th>
+<th>Sự kiện chuyển</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Registered</td>
+<td>Owner/Admin tạo mới qua <code>POST /api/devices</code> (sinh <code>device_uid</code> + <code>api_key</code>)</td>
+</tr>
+<tr>
+<td>Provisioned</td>
+<td>Đánh dấu khi <code>api_key</code> đã được nạp vào firmware (thao tác thủ công hoặc endpoint riêng)</td>
+</tr>
+<tr>
+<td>Active</td>
+<td>Backend nhận heartbeat đầu tiên qua MQTT</td>
+</tr>
+<tr>
+<td>Offline/Fault</td>
+<td>Không nhận heartbeat &gt; 30s (job nền check định kỳ) hoặc thiết bị báo lỗi</td>
+</tr>
+<tr>
+<td>Maintenance</td>
+<td>Owner/Admin khóa tạm qua <code>PUT /api/devices/{id}/status</code></td>
+</tr>
+<tr>
+<td>Decommissioned</td>
+<td>Owner/Admin thao tác thủ công → vô hiệu hóa <code>api_key</code>, mọi bản tin MQTT từ device này bị reject</td>
+</tr>
+</tbody>
+</table>
+<p>Mọi lần chuyển trạng thái phải ghi vào <code>device_lifecycle_log</code>.</p>
+<hr>
+<h2>8. MQTT — topic, payload, độ tin cậy</h2>
+<p><strong>Topic:</strong></p>
+<pre><code>plant/{deviceId}/telemetry/light
+plant/{deviceId}/telemetry/soil
+plant/{deviceId}/telemetry/air
+plant/{deviceId}/telemetry/rain
+plant/{deviceId}/telemetry/waterlevel
+plant/{deviceId}/status
+plant/{deviceId}/cmd/curtain
+plant/{deviceId}/cmd/pump
+plant/{deviceId}/ack
+</code></pre>
+<p><strong>Payload telemetry:</strong></p>
+<pre><code class="language-json">{&#34;deviceId&#34;:&#34;esp32-plant-001&#34;,&#34;timestamp&#34;:&#34;2026-09-06T10:15:30Z&#34;,&#34;type&#34;:&#34;soil&#34;,&#34;value&#34;:28.5,&#34;unit&#34;:&#34;%&#34;}
+</code></pre>
+<p><strong>Payload lệnh (backend → thiết bị):</strong></p>
+<pre><code class="language-json">{&#34;commandId&#34;:&#34;cmd-000123&#34;,&#34;deviceId&#34;:&#34;esp32-plant-001&#34;,&#34;action&#34;:&#34;pump_on&#34;,&#34;duration&#34;:5000,&#34;issuedBy&#34;:&#34;user-001&#34;,&#34;timestamp&#34;:&#34;2026-09-06T10:16:00Z&#34;}
+</code></pre>
+<p><strong>Payload ack (thiết bị → backend):</strong></p>
+<pre><code class="language-json">{&#34;commandId&#34;:&#34;cmd-000123&#34;,&#34;deviceId&#34;:&#34;esp32-plant-001&#34;,&#34;status&#34;:&#34;executed&#34;,&#34;timestamp&#34;:&#34;2026-09-06T10:16:02Z&#34;}
+</code></pre>
+<p><strong>Yêu cầu implement:</strong></p>
+<ul>
+<li>QoS = 1 cho telemetry và cmd; xử lý trùng lặp bằng <code>commandId</code>.</li>
+<li>Timeout 5s không nhận ack → gửi lại, tối đa 3 lần → đánh dấu <code>failed</code>.</li>
+<li>Heartbeat mỗi 15s từ thiết bị; job nền check mỗi ~10s để phát hiện thiết bị quá 30s không heartbeat → set <code>offline</code>, sinh alert.</li>
+<li>Dùng MQTT <strong>Last Will and Testament</strong> để broker tự publish trạng thái offline khi mất kết nối đột ngột.</li>
+<li>MQTT subscriber validate: device tồn tại + đang ở trạng thái cho phép publish (không phải <code>decommissioned</code>), giá trị nằm trong khoảng hợp lệ (độ ẩm 0–100%, nhiệt độ -10–60°C...) — reject và log nếu sai.</li>
+<li>Backend không expose endpoint HTTP public cho thiết bị publish trực tiếp — chỉ qua MQTT.</li>
+</ul>
+<hr>
+<h2>9. Rule engine (đánh giá sau mỗi telemetry mới)</h2>
+<table>
+<thead>
+<tr>
+<th>Điều kiện</th>
+<th>Hành động</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ánh sáng &gt; 10000 lux</td>
+<td>Publish lệnh đóng mái che + log</td>
+</tr>
+<tr>
+<td>Mưa = true</td>
+<td>Publish lệnh mở mái che, huỷ lệnh tưới đang chờ</td>
+</tr>
+<tr>
+<td>Độ ẩm đất &lt; 30% AND nhiệt độ &lt; 35°C AND không mưa AND mực nước đủ</td>
+<td>Publish lệnh bật bơm 5s</td>
+</tr>
+<tr>
+<td>Độ ẩm đất &lt; 30% AND nhiệt độ ≥ 35°C</td>
+<td>Sinh alert &quot;chờ tưới do nhiệt độ cao&quot;, không tưới</td>
+</tr>
+<tr>
+<td>Mực nước = thấp</td>
+<td>Sinh alert &quot;cần châm nước&quot;, chặn lệnh bật bơm</td>
+</tr>
+<tr>
+<td>Nhiệt độ &gt; 30°C AND độ ẩm KK &gt; 80% kéo dài &gt; 30 phút</td>
+<td>Sinh alert &quot;nguy cơ nấm mốc&quot;</td>
+</tr>
+<tr>
+<td>Không heartbeat &gt; 30s</td>
+<td>Set device = offline, sinh alert</td>
+</tr>
+</tbody>
+</table>
+<p>Alert lưu bảng <code>alerts</code> với <code>status=open</code>; user (owner của device hoặc admin) có quyền <code>acknowledge</code> / <code>resolve</code> qua API.</p>
+<hr>
+<h2>10. REST API — danh sách endpoint đầy đủ</h2>
+<pre><code>POST   /api/auth/register
+POST   /api/auth/login
+POST   /api/auth/refresh
+PUT    /api/users/me/password
+
+GET    /api/users                    [admin]
+POST   /api/users                    [admin]
+PUT    /api/users/{id}/role          [admin]
+PUT    /api/users/{id}/status        [admin]
+
+GET    /api/devices                  [admin: tất cả | owner: của mình | viewer: được share]
+POST   /api/devices                  [admin, owner]
+GET    /api/devices/{id}
+PUT    /api/devices/{id}/status      [admin, owner-sở hữu]  -- activate/maintenance/decommission
+PUT    /api/devices/{id}/config      [admin, owner-sở hữu]  -- ngưỡng cảnh báo riêng cho device
+
+GET    /api/telemetry?deviceId=&amp;from=&amp;to=&amp;type=
+GET    /api/telemetry/latest?deviceId=
+GET    /api/telemetry/export?deviceId=&amp;from=&amp;to=&amp;format=csv
+
+POST   /api/commands                 [admin, owner-sở hữu]
+GET    /api/commands?deviceId=
+
+GET    /api/alerts?deviceId=&amp;status=
+PUT    /api/alerts/{id}/acknowledge
+PUT    /api/alerts/{id}/resolve
+
+GET    /api/audit-log                [admin]
+</code></pre>
+<p><strong>WebSocket:</strong> <code>ws://.../ws/devices/{deviceId}</code> — client subscribe theo device (kiểm tra quyền xem device khi handshake), server broadcast telemetry mới, thay đổi trạng thái device, alert mới.</p>
+<hr>
+<h2>11. Bảo mật — checklist bắt buộc</h2>
+<ul>
+<li><input disabled="" type="checkbox"> Hash password bằng bcrypt/argon2, không log/lưu plaintext.</li>
+<li><input disabled="" type="checkbox"> JWT access token thời hạn ngắn + refresh token riêng.</li>
+<li><input disabled="" type="checkbox"> Middleware kiểm tra role + ownership trên <strong>mọi</strong> endpoint nhạy cảm (không chỉ ẩn UI).</li>
+<li><input disabled="" type="checkbox"> Mỗi thiết bị có <code>device_uid</code> + <code>api_key</code>/MQTT credential riêng biệt.</li>
+<li><input disabled="" type="checkbox"> <code>.env</code> chứa toàn bộ secret, có <code>.env.example</code> không chứa giá trị thật, <code>.gitignore</code> loại <code>.env</code>.</li>
+<li><input disabled="" type="checkbox"> Validate input chặt (Pydantic) cho mọi API và mọi payload MQTT.</li>
+<li><input disabled="" type="checkbox"> Decommission thiết bị → vô hiệu hoá <code>api_key</code> ngay, broker/backend reject mọi bản tin sau đó.</li>
+<li><input disabled="" type="checkbox"> Audit log cho: đăng nhập, đổi quyền, khoá/decommission thiết bị, gửi lệnh điều khiển.</li>
+<li><input disabled="" type="checkbox"> HTTPS cho API, <code>mqtts://</code> (TLS) cho MQTT nếu broker hỗ trợ.</li>
+<li><input disabled="" type="checkbox"> Giới hạn số lần đăng nhập sai để chống brute-force.</li>
+</ul>
+<p><strong>2 kịch bản bảo mật tối thiểu cần AI viết test cho:</strong></p>
+<ol>
+<li>Viewer gửi lệnh điều khiển → backend trả 403 Forbidden.</li>
+<li>Thiết bị đã decommissioned publish dữ liệu → bị từ chối, không ghi DB.</li>
+</ol>
+<hr>
+<h2>12. Yêu cầu phi chức năng</h2>
+<table>
+<thead>
+<tr>
+<th>Chỉ tiêu</th>
+<th>Mục tiêu</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Độ trễ cảm biến → dashboard</td>
+<td>&lt; 3 giây (mạng ổn định)</td>
+</tr>
+<tr>
+<td>Độ trễ lệnh điều khiển</td>
+<td>&lt; 2 giây</td>
+</tr>
+<tr>
+<td>Tự kết nối lại khi mất mạng</td>
+<td>Bắt buộc (cả ESP32 lẫn MQTT client trong backend)</td>
+</tr>
+<tr>
+<td>Ổn định</td>
+<td>Chạy liên tục 24h không lỗi nghiêm trọng</td>
+</tr>
+<tr>
+<td>Phát hiện offline</td>
+<td>Trong vòng 30 giây kể từ mất kết nối</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>13. Kế hoạch kiểm thử (AI phải sinh test tương ứng)</h2>
+<h3>13.1. Kiểm thử chức năng</h3>
+<table>
+<thead>
+<tr>
+<th>Quy trình</th>
+<th>Cách kiểm thử</th>
+<th>Kết quả mong đợi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Đăng nhập và phân quyền</td>
+<td>Đăng nhập bằng 3 vai trò khác nhau</td>
+<td>Mỗi vai trò thấy đúng menu/chức năng được phép</td>
+</tr>
+<tr>
+<td>Đăng ký, kích hoạt thiết bị</td>
+<td>Tạo thiết bị mới, nạp <code>api_key</code> vào firmware</td>
+<td>Thiết bị chuyển từ Registered → Active</td>
+</tr>
+<tr>
+<td>Gửi telemetry</td>
+<td>Quan sát log MQTT và DB</td>
+<td>Dữ liệu 4 loại cảm biến được lưu đúng định dạng</td>
+</tr>
+<tr>
+<td>Dashboard cập nhật realtime</td>
+<td>Thay đổi giá trị cảm biến (ví dụ che LDR)</td>
+<td>Dashboard cập nhật trong vài giây</td>
+</tr>
+<tr>
+<td>Gửi và xác nhận lệnh điều khiển</td>
+<td>Bấm nút bật bơm trên UI</td>
+<td>Bơm chạy thực tế, trạng thái lệnh chuyển &quot;executed&quot;</td>
+</tr>
+<tr>
+<td>Phát hiện thiết bị offline</td>
+<td>Ngắt Wi-Fi của ESP32</td>
+<td>Trạng thái chuyển Offline sau ~30s, sinh cảnh báo</td>
+</tr>
+<tr>
+<td>Sinh và xử lý cảnh báo</td>
+<td>Làm khô đất giả lập</td>
+<td>Cảnh báo xuất hiện, có thể acknowledge</td>
+</tr>
+<tr>
+<td>Khóa/ngừng sử dụng thiết bị</td>
+<td>Admin decommission thiết bị</td>
+<td>Thiết bị không thể publish dữ liệu nữa</td>
+</tr>
+</tbody>
+</table>
+<h3>13.2. Kiểm thử phi chức năng</h3>
+<table>
+<thead>
+<tr>
+<th>Chỉ tiêu</th>
+<th>Phương pháp đo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Độ trễ cảm biến → dashboard</td>
+<td>So sánh timestamp lúc đọc cảm biến vs lúc hiển thị UI</td>
+</tr>
+<tr>
+<td>Độ trễ lệnh điều khiển</td>
+<td>Từ lúc bấm nút đến lúc nhận <code>ack</code></td>
+</tr>
+<tr>
+<td>Tỷ lệ mất bản tin</td>
+<td>So sánh số bản tin publish vs số bản tin backend nhận trong 1h</td>
+</tr>
+<tr>
+<td>Khả năng phục hồi sau mất mạng</td>
+<td>Ngắt Wi-Fi 1 phút rồi bật lại, đo thời gian tự kết nối lại</td>
+</tr>
+<tr>
+<td>Độ ổn định</td>
+<td>Chạy liên tục 24h, ghi số lần lỗi/crash</td>
+</tr>
+</tbody>
+</table>
+<p>AI cần viết:</p>
+<ul>
+<li>Unit test cho rule engine (mock các tổ hợp cảm biến, assert đúng hành động sinh ra).</li>
+<li>Integration test cho API (dùng <code>httpx.AsyncClient</code> + DB test/sqlite hoặc test container postgres), bao gồm test 403 cho viewer, test ownership.</li>
+<li>(Tuỳ chọn) test giả lập MQTT publish bằng client MQTT trong test để kiểm tra luồng end-to-end lưu telemetry → sinh alert/lệnh.</li>
+</ul>
+<hr>
+<h2>14. PROMPT TỔNG HỢP (copy để đưa thẳng cho AI coding assistant)</h2>
+<pre><code>Bạn là AI coding assistant. Hãy generate toàn bộ source code cho hệ thống &#34;Smart Plant Care&#34; theo đúng đặc tả sau, KHÔNG được tự ý đổi tên field/endpoint/role đã cho:
+
+TECH STACK: Backend Python FastAPI (async) + SQLAlchemy 2 async + PostgreSQL + Alembic + paho-mqtt/gmqtt + WebSocket native + JWT (access+refresh) + bcrypt + Pydantic v2 + pytest. Frontend React 18 + TypeScript + Vite + React Router + TanStack Query + axios + Recharts + Ant Design.
+
+Yêu cầu bắt buộc:
+1. RBAC 3 vai trò (admin, owner, viewer) theo ma trận quyền cho sẵn — kiểm tra ở backend qua dependency, không chỉ ẩn UI.
+2. Auth: đăng ký/đăng nhập/refresh token, bcrypt hash, khoá tài khoản sau N lần đăng nhập sai.
+3. Quản lý vòng đời thiết bị đầy đủ state machine: Registered → Provisioned → Active → Offline/Fault → Maintenance → Decommissioned, ghi log mỗi lần chuyển trạng thái.
+4. MQTT service chạy nền trong FastAPI lifespan: subscribe telemetry/status/ack, publish lệnh điều khiển, dùng QoS 1, xử lý duplicate qua commandId, timeout+retry 3 lần cho lệnh, LWT cho heartbeat.
+5. Rule engine chạy sau mỗi telemetry mới, áp đúng 7 luật cho trong đặc tả (ánh sáng, mưa, độ ẩm đất+nhiệt độ, mực nước, nấm mốc, heartbeat timeout).
+6. REST API đầy đủ theo danh sách endpoint cho sẵn, response theo Pydantic schema rõ ràng, error dùng đúng HTTP status (401/403/404/422).
+7. WebSocket đẩy realtime telemetry/trạng thái device/alert mới tới frontend theo từng device.
+8. Database đúng theo schema SQL cho sẵn (9 bảng), dùng Alembic migration.
+9. Audit log cho các hành động nhạy cảm (login, đổi quyền, khoá/decommission device, gửi lệnh).
+10. Frontend: màn hình Login, Dashboard realtime (4 chỉ số + trạng thái + alert mở), Chi tiết thiết bị (biểu đồ lịch sử + nút điều khiển thủ công), Quản lý thiết bị, Quản lý user (chỉ admin), Alerts (list + acknowledge/resolve), Lịch sử lệnh điều khiển. Menu/UI ẩn hiện theo role nhưng luôn dựa vào quyền thật trả về từ backend.
+11. Viết test: unit test rule engine, integration test API (bắt buộc test case viewer bị 403 khi gửi lệnh, và device đã decommission bị reject khi publish).
+12. Cung cấp Dockerfile cho backend &amp; frontend, docker-compose gồm backend + frontend + postgres + mosquitto, .env.example đầy đủ biến môi trường.
+
+Hãy generate theo thứ tự: (1) DB models + migration → (2) auth + RBAC middleware → (3) device CRUD + state machine → (4) MQTT service + rule engine → (5) command service (gửi lệnh, retry) → (6) WebSocket broadcast → (7) alert/audit API → (8) frontend auth &amp; routing theo role → (9) dashboard realtime → (10) các màn hình quản lý còn lại → (11) test.
+
+Nếu thiếu thông tin nào so với đặc tả gốc, hãy hỏi lại trước khi tự suy diễn.
+</code></pre>
+<hr>
+<h2>15. Ghi chú</h2>
+<ul>
+<li>Phần firmware ESP32 (C++) không nằm trong phạm vi AI gen code Python/React ở tài liệu này.</li>
+<li>Nếu AI đề xuất đổi công nghệ (ví dụ dùng Django thay FastAPI, hay Socket.IO thay WebSocket thuần), cần xác nhận lại trước khi generate vì có thể ảnh hưởng cấu trúc thư mục và cách deploy đã mô tả ở mục 3.</li>
+</ul>
+
+</body></html>

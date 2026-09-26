@@ -1,0 +1,43 @@
+DANH SÁCH THIẾT BỊ HỆ THỐNG TƯỚI CÂY VÀ MÁI CHE TỰ ĐỘNG
+
+1. XỬ LÝ TRUNG TÂM
+- Board ESP32 (DevKit V1)
+  Chức năng: Thu thập dữ liệu từ các cảm biến, gửi dữ liệu qua MQTT và nhận lệnh điều khiển từ hệ thống.
+
+2. CẢM BIẾN
+- Cảm biến độ ẩm đất
+  Chức năng: Đo độ ẩm của đất, phục vụ việc xác định thời điểm cần tưới cây (thuộc bộ kit tưới).
+
+- Cảm biến ánh sáng (BH1750 hoặc LDR)
+  Chức năng: Đo cường độ ánh sáng, làm cơ sở kích hoạt cơ cấu đóng/mở mái che.
+
+- Cảm biến nhiệt độ – độ ẩm không khí (DHT22 hoặc DHT11)
+  Chức năng: Theo dõi nhiệt độ và độ ẩm không khí, phục vụ cảnh báo sốc nhiệt và điều kiện có nguy cơ phát sinh nấm mốc.
+
+- Cảm biến mưa (Rain Sensor Module)
+  Chức năng: Phát hiện trời mưa, từ đó hoãn chu trình tưới và điều khiển mái che phù hợp.
+
+3. CƠ CẤU CHẤP HÀNH (ACTUATOR)
+- Máy bơm nước mini (kèm ống nước mềm)
+  Chức năng: Bơm nước để thực hiện tưới cây tự động (thuộc bộ kit tưới).
+
+- Relay Module 1 kênh 5V có opto cách ly
+  Chức năng: Đóng/ngắt nguồn điện cho máy bơm, giúp ESP32 điều khiển tải công suất cao hơn một cách an toàn.
+
+- Động cơ Servo SG90
+  Chức năng: Điều khiển cơ cấu kéo/thu mô hình mái che.
+
+4. PHỤ KIỆN & LẮP RÁP
+- Breadboard (bo test cắm mạch)
+  Chức năng: Dùng để lắp ráp và thử nghiệm mạch điện mà không cần hàn.
+
+- Dây cắm mạch (Jumper Wire đực–đực, đực–cái)
+  Chức năng: Kết nối tín hiệu giữa ESP32 với cảm biến, relay và servo.
+
+5. NGUỒN CẤP
+- Cáp nạp dữ liệu (Micro-USB hoặc Type-C)
+  Chức năng: Nạp chương trình từ máy tính vào ESP32 và cấp nguồn trong quá trình thử nghiệm.
+
+###Chưa mua vội
+- Củ sạc / Adapter nguồn 5V–2A (dự phòng phân tích)
+  Chức năng: Cấp nguồn độc lập khi hệ thống hoạt động với tải cao, đặc biệt khi Wi-Fi, máy bơm và servo hoạt động đồng thời.

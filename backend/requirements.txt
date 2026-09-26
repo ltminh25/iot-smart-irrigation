@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic[email]
+pydantic-settings
+paho-mqtt
+websockets
+python-dotenv
+alembic
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+apscheduler
+httpx
+pytest
+pytest-asyncio
