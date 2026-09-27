@@ -5,11 +5,13 @@ DANH SÁCH THIẾT BỊ HỆ THỐNG TƯỚI CÂY VÀ MÁI CHE TỰ ĐỘNG
   Chức năng: Thu thập dữ liệu từ các cảm biến, gửi dữ liệu qua MQTT và nhận lệnh điều khiển từ hệ thống.
 
 2. CẢM BIẾN
+///
 - Cảm biến độ ẩm đất
   Chức năng: Đo độ ẩm của đất, phục vụ việc xác định thời điểm cần tưới cây (thuộc bộ kit tưới).
 
 - Cảm biến ánh sáng (BH1750 hoặc LDR)
   Chức năng: Đo cường độ ánh sáng, làm cơ sở kích hoạt cơ cấu đóng/mở mái che.
+///
 
 - Cảm biến nhiệt độ – độ ẩm không khí (DHT22 hoặc DHT11)
   Chức năng: Theo dõi nhiệt độ và độ ẩm không khí, phục vụ cảnh báo sốc nhiệt và điều kiện có nguy cơ phát sinh nấm mốc.
