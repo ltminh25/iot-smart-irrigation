@@ -14,11 +14,6 @@ DANH SÁCH THIẾT BỊ HỆ THỐNG TƯỚI CÂY VÀ MÁI CHE TỰ ĐỘNG
   Chức năng: Đo cường độ ánh sáng, làm cơ sở kích hoạt cơ cấu đóng/mở mái che.
 /////
 
-- Cảm biến nhiệt độ – độ ẩm không khí (DHT22 hoặc DHT11)
-  Chức năng: Theo dõi nhiệt độ và độ ẩm không khí, phục vụ cảnh báo sốc nhiệt và điều kiện có nguy cơ phát sinh nấm mốc.
-
-- Cảm biến mưa (Rain Sensor Module)
-  Chức năng: Phát hiện trời mưa, từ đó hoãn chu trình tưới và điều khiển mái che phù hợp.
 
 3. CƠ CẤU CHẤP HÀNH (ACTUATOR)
 /////
@@ -26,7 +21,7 @@ DANH SÁCH THIẾT BỊ HỆ THỐNG TƯỚI CÂY VÀ MÁI CHE TỰ ĐỘNG
   Chức năng: Bơm nước để thực hiện tưới cây tự động (thuộc bộ kit tưới).
 
 - Relay Module 1 kênh 5V có opto cách ly
-  Chức năng: Đóng/ngắt nguồn điện cho máy bơm, giúp ESP32 điều khiển tải công suất cao hơn một cách an toàn.
+  Chức năng: Đóng/ngắt nguồn điện cho máy bơm, giúp ESP8266 điều khiển tải công suất cao hơn một cách an toàn.
 
 - Động cơ Servo SG90
   Chức năng: Điều khiển cơ cấu kéo/thu mô hình mái che.
@@ -49,3 +44,9 @@ DANH SÁCH THIẾT BỊ HỆ THỐNG TƯỚI CÂY VÀ MÁI CHE TỰ ĐỘNG
 ###Chưa mua vội
 - Củ sạc / Adapter nguồn 5V–2A (dự phòng phân tích)
   Chức năng: Cấp nguồn độc lập khi hệ thống hoạt động với tải cao, đặc biệt khi Wi-Fi, máy bơm và servo hoạt động đồng thời.
+
+- Cảm biến nhiệt độ – độ ẩm không khí (DHT22 hoặc DHT11)
+  Chức năng: Theo dõi nhiệt độ và độ ẩm không khí, phục vụ cảnh báo sốc nhiệt và điều kiện có nguy cơ phát sinh nấm mốc.
+
+- Cảm biến mưa (Rain Sensor Module)
+  Chức năng: Phát hiện trời mưa, từ đó hoãn chu trình tưới và điều khiển mái che phù hợp.
