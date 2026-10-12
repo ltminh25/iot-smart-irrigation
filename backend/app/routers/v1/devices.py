@@ -22,8 +22,15 @@ def get_devices(db: Session = Depends(get_db), current_user: User = Depends(get_
 
 @router.post("", response_model=DeviceResponse)
 def create_device(device_in: DeviceCreate, db: Session = Depends(get_db), current_user: User = Depends(require_role("admin", "owner"))):
+    uid = device_in.device_uid.strip() if device_in.device_uid and device_in.device_uid.strip() else generate_device_uid()
+    existing = db.query(Device).filter(Device.device_uid == uid).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Mã thiết bị '{uid}' đã tồn tại trong hệ thống. Vui lòng chọn mã khác."
+        )
     new_device = Device(
-        device_uid=generate_device_uid(),
+        device_uid=uid,
         name=device_in.name,
         location=device_in.location,
         owner_id=current_user.id,

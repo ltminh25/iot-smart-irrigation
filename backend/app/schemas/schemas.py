@@ -36,7 +36,7 @@ class DeviceBase(BaseModel):
     location: Optional[str] = None
 
 class DeviceCreate(DeviceBase):
-    pass
+    device_uid: Optional[str] = None
 
 class DeviceUpdate(BaseModel):
     name: Optional[str] = None
@@ -52,6 +52,7 @@ class DeviceResponse(DeviceBase):
     owner_id: int
     status: str
     firmware_version: Optional[str] = None
+    api_key: Optional[str] = None
     last_heartbeat_at: Optional[datetime] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

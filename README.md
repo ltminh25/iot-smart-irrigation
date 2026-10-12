@@ -208,3 +208,47 @@ plant-care-iot/
 | `plant/{deviceId}/cmd/pump` | Backend → ESP32 | Điều khiển bơm |
 | `plant/{deviceId}/cmd/curtain` | Backend → ESP32 | Điều khiển mái che |
 | `plant/{deviceId}/ack` | ESP32 → Backend | Xác nhận lệnh |
+
+---
+
+## 6. 📱 Hướng dẫn tính năng Quản lý thiết bị & Onboarding ESP8266 / ESP32
+
+Tính năng này cho phép bạn đăng ký thiết bị mới trên giao diện Web, nhận mã định danh duy nhất (`DEVICE_ID`), và xuất code Arduino C++ hoàn chỉnh để nạp trực tiếp vào ESP8266/ESP32.
+
+### 📋 Bước 1: Thêm thiết bị trên giao diện Web
+1. Đăng nhập vào hệ thống (với tài khoản `admin` hoặc tài khoản `owner`).
+2. Vào menu **Devices** trên thanh điều hướng bên trái.
+3. Bấm nút **"Thêm thiết bị mới"**:
+   * **Tên thiết bị**: Nhập tên gợi nhớ (ví dụ: `Chậu trầu bà ban công`, `Khay rau tầng thượng`).
+   * **Mã thiết bị (Device UID)**:
+     * Bạn có thể tự đặt mã theo ý muốn (ví dụ: `esp8266-cay-01`).
+     * *Hoặc để trống*: Hệ thống sẽ tự động tạo một mã ngẫu nhiên duy nhất (dạng `esp32-plant-xxxxxx`).
+   * **Vị trí lắp đặt**: Nhập vị trí thực tế (ví dụ: `Ban công tầng 2`).
+4. Bấm **"Lưu & Tạo mã thiết bị"**.
+
+### 💻 Bước 2: Lấy mã định danh và Code mẫu ESP8266
+Ngay sau khi lưu thành công, hệ thống sẽ mở **Modal hướng dẫn Onboarding**:
+* **Mã định danh (DEVICE_ID)**: Bấm nút **"Sao chép mã"** để copy mã thiết bị.
+* **Code Arduino mẫu hoàn chỉnh**: 
+  * Đã tích hợp sẵn thư viện `PubSubClient`, khai báo WiFi, cấu hình MQTT broker, và điền sẵn mã `DEVICE_ID` cùng các Topic MQTT chuẩn.
+  * Bấm nút **"Sao chép code ESP8266"** để copy toàn bộ code.
+* *(Ghi chú: Tại bảng danh sách thiết bị, bạn cũng có thể bấm vào menu ba chấm `...` của từng dòng và chọn **"Xem mã code ESP8266"** để lấy lại code bất kỳ lúc nào).*
+
+### 🔌 Bước 3: Nạp code vào ESP8266 / ESP32
+1. Mở **Arduino IDE** hoặc **PlatformIO**.
+2. Cài đặt thư viện: `PubSubClient` (của Nick O'Leary).
+3. Dán code mẫu đã copy từ Web vào.
+4. Điền tên WiFi và mật khẩu của bạn vào 2 dòng:
+   ```cpp
+   const char* ssid = "WIFI_CUA_BAN";
+   const char* password = "MAT_KHAU_WIFI";
+   ```
+5. Chọn đúng cổng COM và bấm **Upload** để nạp code vào board.
+
+### 📊 Bước 4: Kiểm tra kết nối thời gian thực
+* Mở **Serial Monitor** trên Arduino IDE (baud rate `115200`):
+  * Khi ESP8266 kết nối WiFi và MQTT thành công, board sẽ tự động gửi bản tin `online` lên topic `plant/{DEVICE_ID}/status`.
+* Trên giao diện Web:
+  * Trạng thái thiết bị trong menu **Devices** sẽ chuyển từ `REGISTERED` sang `ACTIVE`.
+  * Vào menu **Dashboard** hoặc bấm **"Xem chi tiết & Cảm biến"** để theo dõi biểu đồ dữ liệu độ ẩm đất và thực hiện bật/tắt máy bơm, đóng/mở mái che từ xa!
+
