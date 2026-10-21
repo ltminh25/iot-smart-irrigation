@@ -16,8 +16,9 @@ export const CommandHistory: React.FC = () => {
 
   const { data: commands, isLoading, refetch } = useQuery({
     queryKey: ['commands', selectedDeviceId],
-    queryFn: () => commandsApi.list(selectedDeviceId || 0), // Nếu API cần device_id, có thể gửi null or 0 tùy backend. Ở đây dùng 0 giả định là tất cả hoặc cần handle lại bên api
+    queryFn: () => commandsApi.list(selectedDeviceId!),
     enabled: selectedDeviceId !== undefined,
+    refetchInterval: (query) => query.state.data?.some(command => command.status === 'pending') ? 3000 : 10000,
   });
 
   const getStatusColor = (status: string) => {

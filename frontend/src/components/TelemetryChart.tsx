@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { Empty } from 'antd';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import dayjs from 'dayjs';
 import type { Telemetry } from '../types';
@@ -10,10 +11,12 @@ interface Props {
 }
 
 export const TelemetryChart: React.FC<Props> = ({ data, sensorType, height = 300 }) => {
-  const chartData = data.map(item => ({
-    ...item,
-    formattedTime: dayjs(item.timestamp).format('HH:mm'),
-  }));
+  const chartData = useMemo(() => [...data]
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .map(item => ({
+      ...item,
+      formattedTime: dayjs(item.timestamp).format('DD/MM HH:mm'),
+    })), [data]);
 
   const getColor = (type: string) => {
     switch (type) {
@@ -27,6 +30,12 @@ export const TelemetryChart: React.FC<Props> = ({ data, sensorType, height = 300
     }
   };
 
+  if (chartData.length === 0) {
+    return <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Empty description="Chưa có dữ liệu cảm biến trong khoảng thời gian này" />
+    </div>;
+  }
+
   return (
     <div style={{ height, width: '100%' }}>
       <ResponsiveContainer>
@@ -34,13 +43,14 @@ export const TelemetryChart: React.FC<Props> = ({ data, sensorType, height = 300
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="formattedTime" />
           <YAxis />
-          <Tooltip labelFormatter={(label) => `Time: ${label}`} />
-          <Line 
-            type="monotone" 
-            dataKey="value" 
-            stroke={getColor(sensorType)} 
-            activeDot={{ r: 8 }} 
+          <Tooltip labelFormatter={(label) => `Thời gian: ${label}`} />
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke={getColor(sensorType)}
+            activeDot={{ r: 6 }}
             name={sensorType}
+            dot={false}
           />
         </LineChart>
       </ResponsiveContainer>

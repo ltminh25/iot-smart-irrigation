@@ -1,55 +1,74 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 
+export interface DeviceWebSocketMessage {
+  type: string;
+  data: Record<string, unknown>;
+}
+
 export const useWebSocket = (deviceId: number | null) => {
-  const [lastMessage, setLastMessage] = useState<any>(null);
+  const [lastMessage, setLastMessage] = useState<DeviceWebSocketMessage | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const { accessToken } = useAuthStore();
 
   useEffect(() => {
-    if (!deviceId || !accessToken) return;
+    if (!deviceId || !accessToken) {
+      setIsConnected(false);
+      setLastMessage(null);
+      return;
+    }
 
-    let reconnectTimeout: ReturnType<typeof setTimeout>;
-    
+    let reconnectTimeout: ReturnType<typeof setTimeout> | undefined;
+    let disposed = false;
+
     const connect = () => {
-      const wsUrl = `${import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000'}/ws/devices/${deviceId}?token=${accessToken}`;
+      if (disposed) return;
+
+      const baseUrl = (import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8001').replace(/\/$/, '');
+      const wsUrl = `${baseUrl}/ws/devices/${deviceId}?token=${encodeURIComponent(accessToken)}`;
       const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
       ws.onopen = () => {
-        setIsConnected(true);
+        if (!disposed) setIsConnected(true);
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = (event: MessageEvent<string>) => {
         try {
-          const data = JSON.parse(event.data);
-          setLastMessage(data);
-        } catch (e) {
-          console.error('Failed to parse WebSocket message', e);
+          const data = JSON.parse(event.data) as DeviceWebSocketMessage;
+          if (!disposed && data && typeof data.type === 'string') setLastMessage(data);
+        } catch (error) {
+          console.error('Không thể đọc dữ liệu WebSocket:', error);
         }
       };
 
       ws.onclose = () => {
-        setIsConnected(false);
-        // Auto-reconnect sau 3s
-        reconnectTimeout = setTimeout(connect, 3000);
+        if (wsRef.current === ws) wsRef.current = null;
+        if (!disposed) {
+          setIsConnected(false);
+          reconnectTimeout = setTimeout(connect, 3000);
+        }
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('Lỗi WebSocket:', error);
         ws.close();
       };
-
-      wsRef.current = ws;
     };
 
     connect();
 
     return () => {
-      clearTimeout(reconnectTimeout);
-      if (wsRef.current) {
-        wsRef.current.close();
+      disposed = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      const ws = wsRef.current;
+      wsRef.current = null;
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
       }
+      setIsConnected(false);
     };
   }, [deviceId, accessToken]);
 

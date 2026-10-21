@@ -56,7 +56,8 @@ export const UserManagement: React.FC = () => {
           style={{ width: 120 }}
         >
           <Select.Option value="admin">Admin</Select.Option>
-          <Select.Option value="user">User</Select.Option>
+          <Select.Option value="owner">Owner</Select.Option>
+          <Select.Option value="viewer">Viewer</Select.Option>
         </Select>
       )
     },
@@ -67,9 +68,9 @@ export const UserManagement: React.FC = () => {
       render: (status: string, record: any) => (
         <Switch 
           checked={status === 'active'}
-          onChange={(checked) => updateStatusMutation.mutate({ id: record.id, status: checked ? 'active' : 'inactive' })}
+          onChange={(checked) => updateStatusMutation.mutate({ id: record.id, status: checked ? 'active' : 'locked' })}
           checkedChildren="Active"
-          unCheckedChildren="Inactive"
+          unCheckedChildren="Locked"
         />
       )
     },
@@ -109,10 +110,11 @@ export const UserManagement: React.FC = () => {
           <Form.Item name="email" label="Email">
             <Input type="email" />
           </Form.Item>
-          <Form.Item name="role" label="Role" initialValue="user">
+          <Form.Item name="role" label="Role" initialValue="owner">
             <Select>
               <Select.Option value="admin">Admin</Select.Option>
-              <Select.Option value="user">User</Select.Option>
+              <Select.Option value="owner">Owner</Select.Option>
+          <Select.Option value="viewer">Viewer</Select.Option>
             </Select>
           </Form.Item>
         </Form>
