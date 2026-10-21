@@ -87,6 +87,7 @@ export const DeviceDetail: React.FC = () => {
         <Col span={24}>
           <Card title="Thông tin thiết bị">
             <Descriptions bordered column={{ xxl: 4, xl: 3, lg: 3, md: 3, sm: 2, xs: 1 }}>
+              <Descriptions.Item label="Loại thiết bị">ESP8286</Descriptions.Item>
               <Descriptions.Item label="Tên">{device?.name}</Descriptions.Item>
               <Descriptions.Item label="UID">{device?.device_uid}</Descriptions.Item>
               <Descriptions.Item label="Trạng thái">{device?.status}</Descriptions.Item>
