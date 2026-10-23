@@ -346,7 +346,7 @@ Ví dụ luật cảnh báo (bảng `alert_rules`):
 
 | Điều kiện | Hành động hệ thống |
 |---|---|
-| Ánh sáng > ngưỡng cao (VD 10000 lux) | Gửi lệnh đóng mái che + ghi log |
+| Ánh sáng > ngưỡng cao (VD 7000 lux) | Gửi lệnh đóng mái che + ghi log |
 | Trời mưa = true | Gửi lệnh mở mái che, hủy lệnh tưới đang chờ |
 | Độ ẩm đất < 30% AND nhiệt độ < 35°C AND không mưa AND mực nước đủ | Gửi lệnh bật bơm 5 giây |
 | Độ ẩm đất < 30% AND nhiệt độ ≥ 35°C | Sinh cảnh báo "chờ tưới do nhiệt độ cao", không tưới |

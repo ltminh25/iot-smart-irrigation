@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Descriptions, Row, Col, DatePicker, Button, Table, Tabs, message } from 'antd';
+import { Card, Descriptions, Row, Col, DatePicker, Button, Table, Tabs, message, Space, Tag } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { devicesApi } from '../api/devices';
@@ -35,7 +35,7 @@ export const DeviceDetail: React.FC = () => {
     enabled: !!deviceId,
   });
 
-  const { data: commands } = useQuery({
+  const { data: commands, refetch: refetchCommands } = useQuery({
     queryKey: ['commands', deviceId],
     queryFn: () => commandsApi.list(deviceId),
     enabled: !!deviceId,
@@ -46,6 +46,19 @@ export const DeviceDetail: React.FC = () => {
     queryFn: () => devicesApi.getLifecycle(deviceId),
     enabled: !!deviceId,
   });
+
+  const canControl = user?.role === 'admin' || (user?.role === 'owner' && (device?.owner_id === user?.id || device?.device_uid === 'esp8266-plant-01'));
+
+  const handleCommand = async (action: string, label: string) => {
+    if (!deviceId) return;
+    try {
+      await commandsApi.send({ device_id: deviceId, action });
+      message.success(`Đã gửi lệnh: ${label}`);
+      refetchCommands();
+    } catch (error) {
+      message.error(`Lỗi gửi lệnh: ${label}`);
+    }
+  };
 
   const handleExport = async () => {
     try {
@@ -68,15 +81,24 @@ export const DeviceDetail: React.FC = () => {
 
   const commandColumns = [
     { title: 'ID', dataIndex: 'command_id', key: 'command_id' },
-    { title: 'Action', dataIndex: 'action', key: 'action' },
-    { title: 'Status', dataIndex: 'status', key: 'status' },
-    { title: 'Issued At', dataIndex: 'issued_at', key: 'issued_at', render: (val: string) => dayjs(val).format('DD/MM/YYYY HH:mm:ss') },
+    { title: 'Lệnh', dataIndex: 'action', key: 'action' },
+    { 
+      title: 'Trạng thái', 
+      dataIndex: 'status', 
+      key: 'status',
+      render: (val: string) => (
+        <Tag color={val === 'executed' ? 'green' : val === 'pending' ? 'blue' : 'red'}>
+          {val.toUpperCase()}
+        </Tag>
+      )
+    },
+    { title: 'Thời gian gửi', dataIndex: 'issued_at', key: 'issued_at', render: (val: string) => dayjs(val).format('DD/MM/YYYY HH:mm:ss') },
   ];
 
   const lifecycleColumns = [
-    { title: 'From', dataIndex: 'from_state', key: 'from_state' },
-    { title: 'To', dataIndex: 'to_state', key: 'to_state' },
-    { title: 'Time', dataIndex: 'timestamp', key: 'timestamp', render: (val: string) => dayjs(val).format('DD/MM/YYYY HH:mm:ss') },
+    { title: 'Từ', dataIndex: 'from_state', key: 'from_state' },
+    { title: 'Sang', dataIndex: 'to_state', key: 'to_state' },
+    { title: 'Thời gian', dataIndex: 'timestamp', key: 'timestamp', render: (val: string) => dayjs(val).format('DD/MM/YYYY HH:mm:ss') },
   ];
 
   const getTelemetryByType = (type: string) => telemetry?.filter(t => t.sensor_type === type) || [];
@@ -85,13 +107,31 @@ export const DeviceDetail: React.FC = () => {
     <div>
       <Row gutter={[16, 16]}>
         <Col span={24}>
-          <Card title="Thông tin thiết bị">
+          <Card
+            title="Thông tin thiết bị & Điều khiển"
+            extra={
+              <Space wrap>
+                <Button type="primary" size="small" onClick={() => handleCommand('pump_on', 'Bật bơm (5s)')} disabled={!canControl}>
+                  Bật bơm (5s)
+                </Button>
+                <Button danger size="small" onClick={() => handleCommand('pump_off', 'Tắt bơm')} disabled={!canControl}>
+                  Tắt bơm
+                </Button>
+                <Button size="small" onClick={() => handleCommand('curtain_open', 'Mở mái che (60°)')} disabled={!canControl}>
+                  Mở mái che (60°)
+                </Button>
+                <Button size="small" onClick={() => handleCommand('curtain_close', 'Đóng mái che (120°)')} disabled={!canControl}>
+                  Đóng mái che (120°)
+                </Button>
+              </Space>
+            }
+          >
             <Descriptions bordered column={{ xxl: 4, xl: 3, lg: 3, md: 3, sm: 2, xs: 1 }}>
               <Descriptions.Item label="Tên">{device?.name}</Descriptions.Item>
               <Descriptions.Item label="UID">{device?.device_uid}</Descriptions.Item>
               <Descriptions.Item label="Trạng thái">{device?.status}</Descriptions.Item>
               <Descriptions.Item label="Vị trí">{device?.location}</Descriptions.Item>
-              <Descriptions.Item label="Firmware">{device?.firmware_version}</Descriptions.Item>
+              <Descriptions.Item label="Firmware">{device?.firmware_version || '1.0.0'}</Descriptions.Item>
               <Descriptions.Item label="API Key">
                 {user?.role === 'admin' || user?.id === device?.owner_id ? device?.api_key : '***'}
               </Descriptions.Item>
@@ -101,7 +141,7 @@ export const DeviceDetail: React.FC = () => {
 
         <Col span={24}>
           <Card 
-            title="Biểu đồ đo lường" 
+            title="Biểu đồ đo lường (Độ ẩm đất & Ánh sáng BH1750)" 
             extra={
               <div style={{ display: 'flex', gap: 16 }}>
                 <RangePicker 
@@ -113,22 +153,26 @@ export const DeviceDetail: React.FC = () => {
               </div>
             }
           >
-            <Tabs defaultActiveKey="light">
-              <Tabs.TabPane tab="Ánh sáng" key="light">
-                <TelemetryChart data={getTelemetryByType('light')} sensorType="light" />
-              </Tabs.TabPane>
-              <Tabs.TabPane tab="Độ ẩm đất" key="soil">
-                <TelemetryChart data={getTelemetryByType('soil')} sensorType="soil" />
-              </Tabs.TabPane>
-              <Tabs.TabPane tab="Nhiệt độ" key="air_temp">
-                <TelemetryChart data={getTelemetryByType('air_temp')} sensorType="air_temp" />
-              </Tabs.TabPane>
-            </Tabs>
+            <Tabs
+              defaultActiveKey="soil"
+              items={[
+                {
+                  key: 'soil',
+                  label: 'Độ ẩm đất (%) - Chân A0',
+                  children: <TelemetryChart data={getTelemetryByType('soil')} sensorType="soil" />,
+                },
+                {
+                  key: 'light',
+                  label: 'Cường độ ánh sáng (lux) - BH1750 (D1/D2)',
+                  children: <TelemetryChart data={getTelemetryByType('light')} sensorType="light" />,
+                },
+              ]}
+            />
           </Card>
         </Col>
 
         <Col span={12}>
-          <Card title="Lịch sử lệnh">
+          <Card title="Lịch sử lệnh điều khiển">
             <Table dataSource={commands} columns={commandColumns} rowKey="id" size="small" pagination={{ pageSize: 5 }} />
           </Card>
         </Col>

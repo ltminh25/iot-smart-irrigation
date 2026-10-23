@@ -1,7 +1,9 @@
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.database import init_db
+from app.core.websocket import manager
 from app.services.mqtt_client import start_mqtt, mqtt_client_instance
 from app.services.heartbeat_checker import start_heartbeat_checker, stop_heartbeat_checker
 from app.routers.api import router as api_router
@@ -9,6 +11,7 @@ from app.routers.api import router as api_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    manager.loop = asyncio.get_running_loop()
     init_db()
     start_mqtt()
     start_heartbeat_checker()

@@ -5,7 +5,6 @@ from app.models.models import Device, Alert
 from app.services.device_service import change_device_status
 from app.core.config import settings
 from app.core.websocket import manager
-import asyncio
 
 scheduler = BackgroundScheduler()
 
@@ -19,30 +18,30 @@ def check_heartbeats():
                 change_device_status(db, device, 'offline')
                 alert = Alert(
                     device_id=device.id,
-                    message=f"Thiết bị {device.name} mất kết nối",
+                    message=f"Thiết bị {device.name} ({device.device_uid}) mất kết nối quá {settings.HEARTBEAT_TIMEOUT_SECONDS}s",
                     severity="critical"
                 )
                 db.add(alert)
                 db.commit()
+                db.refresh(alert)
                 
-                # Broadcast
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(manager.broadcast(str(device.id), {
-                        "type": "alert",
-                        "data": {
-                            "message": alert.message,
-                            "severity": alert.severity
-                        }
-                    }))
-                except RuntimeError:
-                    pass
+                manager.broadcast_sync(str(device.id), {
+                    "type": "alert",
+                    "data": {
+                        "id": alert.id,
+                        "message": alert.message,
+                        "severity": alert.severity,
+                        "created_at": alert.created_at.isoformat() if alert.created_at else None
+                    }
+                })
     finally:
         db.close()
 
 def start_heartbeat_checker():
-    scheduler.add_job(check_heartbeats, 'interval', seconds=settings.HEARTBEAT_CHECK_INTERVAL)
-    scheduler.start()
+    if not scheduler.running:
+        scheduler.add_job(check_heartbeats, 'interval', seconds=settings.HEARTBEAT_CHECK_INTERVAL)
+        scheduler.start()
 
 def stop_heartbeat_checker():
-    scheduler.shutdown()
+    if scheduler.running:
+        scheduler.shutdown()

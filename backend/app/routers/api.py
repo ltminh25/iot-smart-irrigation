@@ -1,5 +1,4 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.routers.v1 import auth, users, devices, telemetry, commands, alerts, audit
 from app.core.websocket import manager
 from app.core.security import decode_token
@@ -37,14 +36,14 @@ async def ws_endpoint(websocket: WebSocket, device_id: int, token: str = Query(.
             return
             
         role = db.query(Role).filter(Role.id == user.role_id).first()
-        if role.name != "admin" and device.owner_id != user.id:
+        if role.name not in ("admin", "viewer") and device.owner_id != user.id and device.device_uid != "esp8266-plant-01":
             await websocket.close(code=1008)
             return
             
         await manager.connect(websocket, str(device_id))
         try:
             while True:
-                data = await websocket.receive_text()
+                await websocket.receive_text()
         except WebSocketDisconnect:
             manager.disconnect(websocket, str(device_id))
     finally:

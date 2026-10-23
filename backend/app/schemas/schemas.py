@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -23,9 +23,17 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     id: int
     role_id: int
+    role: Optional[str] = None
     status: str
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def extract_role_name(cls, v):
+        if hasattr(v, "name"):
+            return v.name
+        return v
 
 class UserLogin(BaseModel):
     username: str
