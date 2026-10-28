@@ -17,6 +17,7 @@ export const Dashboard: React.FC = () => {
   const { data: devices } = useQuery({
     queryKey: ['devices'],
     queryFn: devicesApi.list,
+    refetchInterval: 5000,
   });
 
   useEffect(() => {
@@ -30,12 +31,14 @@ export const Dashboard: React.FC = () => {
     queryKey: ['telemetry', 'latest', selectedDeviceId],
     queryFn: () => telemetryApi.latest(selectedDeviceId!),
     enabled: !!selectedDeviceId,
+    refetchInterval: 3000,
   });
 
   const { data: alerts, refetch: refetchAlerts } = useQuery({
     queryKey: ['alerts', selectedDeviceId],
     queryFn: () => alertsApi.list({ device_id: selectedDeviceId!, status: 'open' }),
     enabled: !!selectedDeviceId,
+    refetchInterval: 5000,
   });
 
   const { lastMessage, isConnected } = useWebSocket(selectedDeviceId);

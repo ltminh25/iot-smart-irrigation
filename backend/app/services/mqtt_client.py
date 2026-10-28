@@ -72,6 +72,14 @@ class MQTTClientWrapper:
             data = json.loads(payload)
             value = float(data.get("value", 0))
 
+            # Nếu bản tin soil có kèm giá trị ADC thô ("raw"), tính lại % theo dải thực tế của mạch 3.3V
+            # (Khô ngoài không khí: raw ~ 1020 -> 0%, Ngâm toàn bộ trong nước: raw ~ 820 -> 100%)
+            if sensor_type == "soil" and data.get("raw") is not None:
+                raw_adc = float(data.get("raw"))
+                adc_dry, adc_wet = 1020.0, 820.0
+                calc_pct = (adc_dry - raw_adc) * 100.0 / (adc_dry - adc_wet)
+                value = round(max(0.0, min(100.0, calc_pct)), 1)
+
             # Validate khoảng giá trị hợp lệ
             if sensor_type in VALID_RANGES:
                 min_v, max_v = VALID_RANGES[sensor_type]

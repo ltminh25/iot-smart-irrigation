@@ -13,7 +13,8 @@ export const useWebSocket = (deviceId: number | null) => {
     let reconnectTimeout: ReturnType<typeof setTimeout>;
     
     const connect = () => {
-      const wsUrl = `${import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000'}/ws/devices/${deviceId}?token=${accessToken}`;
+      const latestToken = localStorage.getItem('access_token') || accessToken;
+      const wsUrl = `${import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8001'}/ws/devices/${deviceId}?token=${latestToken}`;
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {

@@ -4,7 +4,7 @@ class Settings(BaseSettings):
     DB_URL: str = "sqlite:///./iot_plant_care.db"
     JWT_SECRET: str = "supersecret_change_in_production"
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     MQTT_BROKER_URL: str = "broker.hivemq.com"
     MQTT_PORT: int = 1883

@@ -41,8 +41,8 @@
 #include <PubSubClient.h>
 
 // ====== CẤU HÌNH WIFI & MQTT - SỬA CHỖ NÀY NẾU CẦN ======
-const char* WIFI_SSID       = "Thanh Anh";
-const char* WIFI_PASS       = "chungcuvuive";
+const char* WIFI_SSID       = "..";
+const char* WIFI_PASS       = "12346789";
 
 const char* MQTT_BROKER     = "broker.hivemq.com";
 const int   MQTT_PORT       = 1883;
@@ -57,9 +57,9 @@ const int   RELAY_PIN       = D5;   // GPIO14
 const int   SERVO_PIN       = D6;   // GPIO12
 
 // ====== CẤU HÌNH HIỆU CHUẨN & AN TOÀN ======
-// Đọc raw ngoài không khí (khô) và khi nhúng nước (ướt)
-const int   ADC_DRY         = 850;
-const int   ADC_WET         = 400;
+// Đọc raw thực tế trên mạch 3.3V ESP8266: ngoài không khí (khô ~1019-1024) và khi ngâm nước (ướt ~805-850)
+const int   ADC_DRY         = 1020;
+const int   ADC_WET         = 820;
 
 // Góc Servo an toàn (tránh 0° và 180° để khỏi kẹt cơ khí)
 const int   SERVO_OPEN_DEG  = 60;   // Mở mái che (curtain_open)
@@ -172,13 +172,22 @@ int rawToPercent(int raw) {
 // ------ ĐỌC CẢM BIẾN ÁNH SÁNG BH1750 (I2C D1/D2) ------
 float readLightLux() {
   if (!bh1750Ready) {
-    // Thử khởi tạo lại nếu trước đó chưa nhận
+    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
     bh1750Ready = lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, 0x23);
     if (!bh1750Ready) return 0.0f;
+    delay(180);
   }
   float lux = lightMeter.readLightLevel();
-  if (lux < 0 || isnan(lux)) {
-    return 0.0f;
+  // Nếu BH1750 bị reset nguồn về Power-Down (0.0) hoặc lỗi bus I2C (0xFFFF / 1.2 = 54612.5)
+  // thì tự động khởi tạo lại I2C + BH1750 để khôi phục ngay
+  if (lux <= 0.0f || lux >= 54600.0f || isnan(lux)) {
+    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+    bh1750Ready = lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, 0x23);
+    delay(180);
+    lux = lightMeter.readLightLevel();
+    if (lux < 0.0f || lux >= 54600.0f || isnan(lux)) {
+      return 0.0f;
+    }
   }
   return lux;
 }
@@ -420,24 +429,12 @@ void handleCurtain() {
 
 void setup() {
   Serial.begin(115200);
-  delay(200);
+  delay(300);
 
   // 1. Luôn tắt bơm ngay lúc khởi động (chế độ thả nổi INPUT)
   setPump(false);
 
-  // 2. Khởi tạo I2C (SDA = D2, SCL = D1) và cảm biến BH1750
-  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
-  bh1750Ready = lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, 0x23);
-  if (bh1750Ready) {
-    Serial.println("[I2C] BH1750 (0x23) đã sẵn sàng.");
-  } else {
-    Serial.println("[I2C] Cảnh báo: Chưa tìm thấy BH1750 ở 0x23, sẽ tự thử lại.");
-  }
-
-  // 3. Đưa Servo về góc mở an toàn (60°) rồi tự detach trong loop()
-  moveCurtain(SERVO_OPEN_DEG, "open");
-
-  // 4. Kết nối WiFi
+  // 2. Kết nối WiFi trước để dòng đỉnh phát sóng WiFi không trùng lúc quay Servo
   Serial.printf("\nĐang kết nối WiFi: %s ", WIFI_SSID);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -451,6 +448,21 @@ void setup() {
     Serial.println(WiFi.localIP());
   } else {
     Serial.println("\nChưa kết nối được WiFi, ESP8266 sẽ tự động kết nối lại ở chế độ nền.");
+  }
+
+  // 3. Đưa Servo về góc mở an toàn (60°), chờ 650ms rồi detach() NGAY LẬP TỨC
+  moveCurtain(SERVO_OPEN_DEG, "open");
+  delay(SERVO_ATTACH_MS);
+  curtainServo.detach();
+  servoMoving = false;
+
+  // 4. Khởi tạo I2C (SDA = D2, SCL = D1) và cảm biến BH1750 sau khi nguồn 3.3V/5V đã ổn định
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+  bh1750Ready = lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, 0x23);
+  if (bh1750Ready) {
+    Serial.println("[I2C] BH1750 (0x23) đã sẵn sàng.");
+  } else {
+    Serial.println("[I2C] Cảnh báo: Chưa tìm thấy BH1750 ở 0x23, sẽ tự thử lại.");
   }
 
   // 5. Cấu hình MQTT
