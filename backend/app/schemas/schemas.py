@@ -50,9 +50,15 @@ class DeviceUpdate(BaseModel):
     name: Optional[str] = None
     location: Optional[str] = None
     firmware_version: Optional[str] = None
+    pump_locked: Optional[bool] = None
+    curtain_locked: Optional[bool] = None
 
 class DeviceStatusUpdate(BaseModel):
     status: str
+
+class DeviceLockUpdate(BaseModel):
+    pump_locked: Optional[bool] = None
+    curtain_locked: Optional[bool] = None
 
 class DeviceResponse(DeviceBase):
     id: int
@@ -61,6 +67,8 @@ class DeviceResponse(DeviceBase):
     status: str
     firmware_version: Optional[str] = None
     api_key: Optional[str] = None
+    pump_locked: Optional[bool] = False
+    curtain_locked: Optional[bool] = False
     last_heartbeat_at: Optional[datetime] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

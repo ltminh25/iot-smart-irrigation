@@ -11,6 +11,7 @@ import { DeviceDetail } from './pages/DeviceDetail';
 import { UserManagement } from './pages/UserManagement';
 import { Alerts } from './pages/Alerts';
 import { CommandHistory } from './pages/CommandHistory';
+import { HistoryPage } from './pages/HistoryPage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { useAuthStore } from './store/authStore';
@@ -55,6 +56,12 @@ export const App: React.FC = () => {
             <Route path="/users" element={
               <ProtectedRoute requiredRoles={['admin']}>
                 <Layout><UserManagement /></Layout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/history" element={
+              <ProtectedRoute>
+                <Layout><HistoryPage /></Layout>
               </ProtectedRoute>
             } />
             

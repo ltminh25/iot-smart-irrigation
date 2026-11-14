@@ -115,8 +115,14 @@ export const DeviceManagement: React.FC = () => {
             </Menu.Item>
             {isOwnerOrAdmin && (
               <>
-                <Menu.Item key="2" onClick={() => updateStatusMutation.mutate({ id: record.id, status: 'maintenance' })}>
-                  Đặt bảo trì
+                <Menu.Item 
+                  key="2" 
+                  onClick={() => updateStatusMutation.mutate({ 
+                    id: record.id, 
+                    status: record.status === 'maintenance' ? 'active' : 'maintenance' 
+                  })}
+                >
+                  {record.status === 'maintenance' ? 'Tắt bảo trì (Kích hoạt)' : 'Bật chế độ bảo trì'}
                 </Menu.Item>
                 <Menu.Item key="3" danger onClick={() => updateStatusMutation.mutate({ id: record.id, status: 'decommissioned' })}>
                   Hủy kích hoạt (Decommission)

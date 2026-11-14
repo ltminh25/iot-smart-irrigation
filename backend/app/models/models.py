@@ -31,6 +31,8 @@ class Device(Base):
     status = Column(String, default="registered")
     firmware_version = Column(String, nullable=True)
     api_key = Column(String, unique=True, index=True)
+    pump_locked = Column(Boolean, default=False)
+    curtain_locked = Column(Boolean, default=False)
     last_heartbeat_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

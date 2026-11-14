@@ -7,12 +7,12 @@ import string
 from fastapi import HTTPException, status
 
 VALID_TRANSITIONS = {
-    'registered': ['provisioned', 'active', 'decommissioned'],
+    'registered': ['provisioned', 'active', 'maintenance', 'decommissioned'],
     'provisioned': ['active', 'offline', 'maintenance', 'decommissioned'],
     'active': ['offline', 'fault', 'maintenance', 'decommissioned'],
     'offline': ['active', 'maintenance', 'decommissioned'],
     'fault': ['active', 'maintenance', 'decommissioned'],
-    'maintenance': ['active', 'decommissioned'],
+    'maintenance': ['active', 'offline', 'decommissioned'],
     'decommissioned': ['active', 'provisioned', 'maintenance'],
 }
 

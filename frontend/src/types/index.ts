@@ -8,6 +8,8 @@ export interface Device {
   owner_id: number; location?: string;
   status: string; // registered|provisioned|active|offline|fault|maintenance|decommissioned
   firmware_version?: string; api_key?: string;
+  pump_locked?: boolean;
+  curtain_locked?: boolean;
   last_heartbeat_at?: string; created_at: string;
 }
 export interface Telemetry {

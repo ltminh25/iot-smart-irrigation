@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   DashboardOutlined,
   DesktopOutlined,
-  AlertOutlined,
   HistoryOutlined,
   UserOutlined,
   LogoutOutlined,
@@ -22,6 +21,7 @@ interface Props {
 const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
   '/devices': 'Quản lý thiết bị',
+  '/history': 'Lịch sử hệ thống',
   '/alerts': 'Cảnh báo',
   '/commands': 'Lịch sử điều khiển',
   '/users': 'Quản lý người dùng',
@@ -42,8 +42,7 @@ export const Layout: React.FC<Props> = ({ children }) => {
     const items = [
       { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
       { key: '/devices', icon: <DesktopOutlined />, label: 'Thiết bị' },
-      { key: '/alerts', icon: <AlertOutlined />, label: 'Cảnh báo' },
-      { key: '/commands', icon: <HistoryOutlined />, label: 'Lịch sử lệnh' },
+      { key: '/history', icon: <HistoryOutlined />, label: 'Lịch sử' },
     ];
 
     if (user?.role === 'admin') {

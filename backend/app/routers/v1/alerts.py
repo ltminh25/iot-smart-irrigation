@@ -18,16 +18,26 @@ def verify_device_access(db: Session, current_user: User, device_id: int):
 
 @router.get("", response_model=List[AlertResponse])
 def get_alerts(
-    device_id: int, 
+    device_id: Optional[int] = None, 
     status: Optional[str] = None,
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    verify_device_access(db, current_user, device_id)
-    query = db.query(Alert).filter(Alert.device_id == device_id)
+    role = db.query(Role).filter(Role.id == current_user.role_id).first()
+    role_name = role.name if role else "viewer"
+
+    query = db.query(Alert)
+    if device_id:
+        verify_device_access(db, current_user, device_id)
+        query = query.filter(Alert.device_id == device_id)
+    else:
+        if role_name not in ("admin", "viewer"):
+            user_device_ids = [d.id for d in db.query(Device).filter(Device.owner_id == current_user.id).all()]
+            query = query.filter(Alert.device_id.in_(user_device_ids))
+
     if status:
         query = query.filter(Alert.status == status)
-    return query.order_by(Alert.created_at.desc()).all()
+    return query.order_by(Alert.created_at.desc()).limit(150).all()
 
 @router.put("/{alert_id}/acknowledge", response_model=AlertResponse)
 def acknowledge_alert(alert_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

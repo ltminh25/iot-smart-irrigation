@@ -4,9 +4,12 @@ from sqlalchemy import or_
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role, get_device_or_403
 from app.models.models import Device, Role, DeviceLifecycleLog, User
-from app.schemas.schemas import DeviceCreate, DeviceResponse, DeviceUpdate, DeviceStatusUpdate, DeviceLifecycleLogResponse
+from app.schemas.schemas import (
+    DeviceCreate, DeviceResponse, DeviceUpdate, DeviceStatusUpdate, DeviceLockUpdate, DeviceLifecycleLogResponse
+)
 from typing import List
 from app.services.device_service import generate_device_uid, generate_api_key, change_device_status
+from app.core.websocket import manager
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
@@ -54,6 +57,35 @@ def get_device(device_id: int, db: Session = Depends(get_db), current_user: User
         raise HTTPException(status_code=404, detail="Device not found")
     if not can_view_device(db, current_user, device):
         raise HTTPException(status_code=403, detail="Forbidden")
+    return device
+
+@router.put("/{device_id}/lock", response_model=DeviceResponse)
+def update_device_lock(
+    device_id: int, 
+    req: DeviceLockUpdate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(require_role("admin"))
+):
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+        
+    if req.pump_locked is not None:
+        device.pump_locked = req.pump_locked
+    if req.curtain_locked is not None:
+        device.curtain_locked = req.curtain_locked
+
+    db.commit()
+    db.refresh(device)
+
+    manager.broadcast_sync(str(device.id), {
+        "type": "device_lock",
+        "data": {
+            "device_id": device.id,
+            "pump_locked": device.pump_locked,
+            "curtain_locked": device.curtain_locked,
+        }
+    })
     return device
 
 @router.put("/{device_id}/status", response_model=DeviceResponse)
