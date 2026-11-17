@@ -1,5 +1,5 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
-from datetime import datetime
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, field_serializer
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 class Token(BaseModel):
@@ -12,13 +12,13 @@ class TokenData(BaseModel):
 
 class UserBase(BaseModel):
     username: str
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
 
 class UserUpdate(BaseModel):
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
 
 class UserResponse(UserBase):
     id: int
@@ -84,6 +84,12 @@ class TelemetryResponse(TelemetryCreate):
     timestamp: datetime
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("timestamp")
+    def serialize_timestamp(self, dt: datetime, _info):
+        if dt and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat() if dt else None
+
 class CommandCreate(BaseModel):
     device_id: int
     action: str
@@ -102,6 +108,12 @@ class CommandResponse(BaseModel):
     retry_count: int
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("issued_at", "executed_at")
+    def serialize_cmd_times(self, dt: Optional[datetime], _info):
+        if dt and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat() if dt else None
+
 class AlertCreate(BaseModel):
     device_id: int
     rule_id: Optional[int] = None
@@ -117,6 +129,12 @@ class AlertResponse(BaseModel):
     status: str
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("created_at")
+    def serialize_created_at(self, dt: datetime, _info):
+        if dt and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat() if dt else None
 
 class AlertRuleCreate(BaseModel):
     sensor_type: str
@@ -137,6 +155,12 @@ class AuditLogResponse(BaseModel):
     timestamp: datetime
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("timestamp")
+    def serialize_timestamp(self, dt: datetime, _info):
+        if dt and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat() if dt else None
+
 class DeviceLifecycleLogResponse(BaseModel):
     id: int
     device_id: int
@@ -145,3 +169,9 @@ class DeviceLifecycleLogResponse(BaseModel):
     changed_by: Optional[int] = None
     timestamp: datetime
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("timestamp")
+    def serialize_timestamp(self, dt: datetime, _info):
+        if dt and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat() if dt else None

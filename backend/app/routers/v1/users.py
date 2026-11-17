@@ -27,13 +27,25 @@ class PasswordUpdate(BaseModel):
     old_password: str
     new_password: str
 
+ROLE_ALIASES = {
+    "user": "owner",
+    "member": "owner",
+    "staff": "viewer",
+    "nhanvien": "viewer",
+}
+
+def resolve_role(role_name: str, db: Session) -> Role | None:
+    normalized = role_name.strip().lower()
+    canonical = ROLE_ALIASES.get(normalized, normalized)
+    return db.query(Role).filter(Role.name == canonical).first()
+
 @router.post("", response_model=UserResponse)
 def create_user(user_in: AdminUserCreate, db: Session = Depends(get_db), _: User = Depends(require_role("admin"))):
     if db.query(User).filter(User.username == user_in.username).first():
         raise HTTPException(status_code=400, detail="Username already exists")
-    role = db.query(Role).filter(Role.name == user_in.role).first()
+    role = resolve_role(user_in.role, db)
     if not role:
-        raise HTTPException(status_code=400, detail="Invalid role name")
+        raise HTTPException(status_code=400, detail="Invalid role name (cho phép: admin, owner, viewer)")
     new_user = User(
         username=user_in.username,
         email=user_in.email,
@@ -66,9 +78,9 @@ def update_role(user_id: int, req: UserRoleUpdate, db: Session = Depends(get_db)
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    role = db.query(Role).filter(Role.name == req.role).first()
+    role = resolve_role(req.role, db)
     if not role:
-        raise HTTPException(status_code=400, detail="Invalid role")
+        raise HTTPException(status_code=400, detail="Invalid role (cho phép: admin, owner, viewer)")
     user.role_id = role.id
     
     audit = AuditLog(user_id=current_user.id, action="update_role", target=f"user_id:{user.id}")

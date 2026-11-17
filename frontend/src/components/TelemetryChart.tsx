@@ -1,6 +1,6 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import dayjs from 'dayjs';
+import { formatLocalTime } from '../utils/date';
 import type { Telemetry } from '../types';
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
 export const TelemetryChart: React.FC<Props> = ({ data, sensorType, height = 300 }) => {
   const chartData = data.map(item => ({
     ...item,
-    formattedTime: dayjs(item.timestamp).format('HH:mm'),
+    formattedTime: formatLocalTime(item.timestamp, 'HH:mm:ss'),
   }));
 
   const getColor = (type: string) => {

@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.models.models import Telemetry, Alert, Command
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 from app.core.websocket import manager
 
@@ -128,7 +128,7 @@ class RuleEngine:
                 "id": alert.id,
                 "message": alert.message,
                 "severity": alert.severity,
-                "created_at": alert.created_at.isoformat() if alert.created_at else None
+                "created_at": (alert.created_at.replace(tzinfo=timezone.utc) if alert.created_at and alert.created_at.tzinfo is None else alert.created_at).isoformat() if alert.created_at else None
             }
         })
 

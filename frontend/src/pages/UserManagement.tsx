@@ -23,7 +23,7 @@ export const UserManagement: React.FC = () => {
       setIsModalVisible(false);
       form.resetFields();
     },
-    onError: () => message.error('Lỗi khi tạo user'),
+    onError: (err: any) => message.error(err?.response?.data?.detail || 'Lỗi khi tạo user'),
   });
 
   const updateRoleMutation = useMutation({
@@ -32,6 +32,7 @@ export const UserManagement: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       message.success('Cập nhật role thành công');
     },
+    onError: (err: any) => message.error(err?.response?.data?.detail || 'Lỗi khi cập nhật role'),
   });
 
   const updateStatusMutation = useMutation({
@@ -53,10 +54,11 @@ export const UserManagement: React.FC = () => {
         <Select 
           value={role} 
           onChange={(val) => updateRoleMutation.mutate({ id: record.id, role: val })}
-          style={{ width: 120 }}
+          style={{ width: 160 }}
         >
           <Select.Option value="admin">Admin</Select.Option>
-          <Select.Option value="user">User</Select.Option>
+          <Select.Option value="owner">Chủ (Owner)</Select.Option>
+          <Select.Option value="viewer">Nhân viên (Staff)</Select.Option>
         </Select>
       )
     },
@@ -107,12 +109,13 @@ export const UserManagement: React.FC = () => {
             <Input.Password />
           </Form.Item>
           <Form.Item name="email" label="Email">
-            <Input type="email" />
+            <Input type="email" placeholder="Ví dụ: staff1@iot.local" />
           </Form.Item>
-          <Form.Item name="role" label="Role" initialValue="user">
+          <Form.Item name="role" label="Role" initialValue="owner">
             <Select>
-              <Select.Option value="admin">Admin</Select.Option>
-              <Select.Option value="user">User</Select.Option>
+              <Select.Option value="admin">Admin (Quản trị viên)</Select.Option>
+              <Select.Option value="owner">Owner (Chủ thiết bị)</Select.Option>
+              <Select.Option value="viewer">Staff (Nhân viên vận hành)</Select.Option>
             </Select>
           </Form.Item>
         </Form>

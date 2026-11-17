@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from 'react';
-import { Row, Col, Select, Badge, Card, List, Button, message, Space, Typography, Tag, notification, Switch, Tooltip, Modal, Tabs, DatePicker } from 'antd';
-import { BulbOutlined, ExperimentOutlined, ThunderboltOutlined, LockOutlined, UnlockOutlined, ToolOutlined, DownloadOutlined } from '@ant-design/icons';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Row, Col, Select, Badge, Card, List, Button, message, Space, Typography, Tag, Switch, Tooltip, Modal, Tabs, DatePicker, Dropdown } from 'antd';
+import { BulbOutlined, ExperimentOutlined, ThunderboltOutlined, LockOutlined, UnlockOutlined, ToolOutlined, DownloadOutlined, AlertOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { devicesApi } from '../api/devices';
@@ -13,6 +13,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import type { DeviceMessage } from '../hooks/useWebSocket';
 import { useAuthStore } from '../store/authStore';
 import type { Device, Telemetry } from '../types';
+import { formatLocalTime } from '../utils/date';
 
 const { RangePicker } = DatePicker;
 
@@ -62,6 +63,36 @@ export const Dashboard: React.FC = () => {
   const [lastCommand, setLastCommand] = useState<{ deviceId: number | null; label: string } | null>(null);
   const lastCmdStatus = lastCommand?.deviceId === selectedDeviceId ? lastCommand.label : '';
 
+  // Quản lý Pop-up Modal cảnh báo theo chuẩn React State
+  const [activeAlert, setActiveAlert] = useState<{
+    id?: number;
+    severity: string;
+    message: string;
+    created_at?: string;
+  } | null>(null);
+
+  const seenAlertsRef = useRef<Set<number>>(new Set());
+  const initialAlertsLoadedRef = useRef<boolean>(false);
+
+  const showAlertModal = (alertData: { id?: number; severity: string; message: string; created_at?: string }) => {
+    if (alertData.id) {
+      seenAlertsRef.current.add(alertData.id);
+    }
+    setActiveAlert(alertData);
+  };
+
+  const resolveAlertMutation = useMutation({
+    mutationFn: (alertId: number) => alertsApi.resolve(alertId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      message.success('Đã xác nhận xử lý cảnh báo thành công');
+      setActiveAlert(null);
+    },
+    onError: (err: any) => {
+      message.error(err?.response?.data?.detail || 'Lỗi khi xử lý cảnh báo');
+    }
+  });
+
   const updateDeviceStatus = useCallback((deviceId: number, status: string) => {
     queryClient.setQueryData<Device[]>(['devices'], previous =>
       previous?.map(device => device.id === deviceId ? { ...device, status } : device)
@@ -69,7 +100,7 @@ export const Dashboard: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['devices'] });
   }, [queryClient]);
 
-  // Toast thông báo (Notification) khi có cảnh báo mới qua WebSocket
+  // Xử lý WebSocket Realtime
   const handleDeviceMessage = useCallback((event: DeviceMessage) => {
     if (event.type === 'telemetry') {
       queryClient.setQueryData<Record<string, Telemetry>>(['telemetry', 'latest', event.data.device_id], prev => ({
@@ -78,23 +109,8 @@ export const Dashboard: React.FC = () => {
       }));
     } else if (event.type === 'alert') {
       refetchAlerts();
-      const severity = event.data?.severity || 'warning';
-      const msg = event.data?.message || 'Có cảnh báo mới từ thiết bị!';
-      if (severity === 'critical') {
-        notification.error({
-          message: '⚠️ CẢNH BÁO KHẨN CẤP',
-          description: msg,
-          placement: 'topRight',
-          duration: 6,
-        });
-      } else {
-        notification.warning({
-          message: '🔔 Cảnh báo hệ thống',
-          description: msg,
-          placement: 'topRight',
-          duration: 5,
-        });
-      }
+      const alertData = event.data || {};
+      showAlertModal(alertData);
     } else if (event.type === 'device_status') {
       updateDeviceStatus(event.data.device_id, event.data.status);
     } else if (event.type === 'device_lock') {
@@ -103,7 +119,25 @@ export const Dashboard: React.FC = () => {
       setLastCommand({ deviceId: selectedDeviceId, label: `${event.data.action}: ${event.data.status.toUpperCase()}` });
     }
   }, [selectedDeviceId, refetchAlerts, queryClient, updateDeviceStatus]);
+
   const { isConnected } = useWebSocket(selectedDeviceId, handleDeviceMessage);
+
+  // Tự động kiểm tra cảnh báo mới từ polling
+  useEffect(() => {
+    if (alerts && alerts.length > 0) {
+      if (!initialAlertsLoadedRef.current) {
+        alerts.forEach(a => seenAlertsRef.current.add(a.id));
+        initialAlertsLoadedRef.current = true;
+      } else {
+        alerts.forEach(a => {
+          if (!seenAlertsRef.current.has(a.id)) {
+            seenAlertsRef.current.add(a.id);
+            showAlertModal(a);
+          }
+        });
+      }
+    }
+  }, [alerts]);
 
   const currentStatus = selectedDevice?.status || 'offline';
   const isMaintenance = currentStatus === 'maintenance';
@@ -187,10 +221,7 @@ export const Dashboard: React.FC = () => {
     <div>
       <Row justify="space-between" align="middle" style={{ marginBottom: 20 }}>
         <Col>
-          <h2 style={{ margin: 0 }}>Dashboard Giám Sát & Điều Khiển (ESP8266)</h2>
-          <Typography.Text type="secondary">
-            Phần cứng: Cảm biến độ ẩm đất (A0) + Ánh sáng BH1750 (D1/D2) + Relay Bơm (D5) + Servo Mái che (D6)
-          </Typography.Text>
+          <h2 style={{ margin: 0 }}>Dashboard Giám Sát & Điều Khiển</h2>
         </Col>
         <Col>
           <Space wrap align="center">
@@ -246,7 +277,42 @@ export const Dashboard: React.FC = () => {
         </Card>
       )}
 
-      {/* 2 CARD CẢM BIẾN REALTIME */}
+      {/* 1. BIỂU ĐỒ NẰM Ở ĐẦU TRANG CHỦ */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+        <Col span={24}>
+          <Card 
+            title="Biểu đồ đo lường lịch sử" 
+            extra={
+              <Space wrap>
+                <RangePicker 
+                  value={dateRange} 
+                  onChange={(dates) => { if (dates && dates[0] && dates[1]) setDateRange([dates[0], dates[1]]); }} 
+                  showTime 
+                />
+                <Button icon={<DownloadOutlined />} onClick={handleExport}>Xuất CSV</Button>
+              </Space>
+            }
+          >
+            <Tabs
+              defaultActiveKey="soil"
+              items={[
+                {
+                  key: 'soil',
+                  label: 'Độ ẩm đất (%) - Chân A0',
+                  children: <TelemetryChart data={getTelemetryByType('soil')} sensorType="soil" height={280} />,
+                },
+                {
+                  key: 'light',
+                  label: 'Cường độ ánh sáng (lux) - BH1750 (D1/D2)',
+                  children: <TelemetryChart data={getTelemetryByType('light')} sensorType="light" height={280} />,
+                },
+              ]}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* 2. CÁC CARD CẢM BIẾN REALTIME */}
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} md={12}>
           <SensorCard 
@@ -282,8 +348,8 @@ export const Dashboard: React.FC = () => {
         </Col>
       </Row>
 
-      {/* BẢNG ĐIỀU KHIỂN & CẢNH BÁO */}
-      <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
+      {/* 3. BẢNG ĐIỀU KHIỂN & CẢNH BÁO */}
+      <Row gutter={[16, 16]} style={{ marginTop: 20 }}>
         <Col xs={24} md={14}>
           <Card
             title={
@@ -394,70 +460,249 @@ export const Dashboard: React.FC = () => {
                 </Button>
               </Tooltip>
             </Space>
-
-            <div style={{ marginTop: 16 }}>
-              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                • <b>Relay Bơm (D5)</b>: Dùng cơ chế thả nổi (Bật: OUTPUT + LOW, Tắt: INPUT) bảo vệ opto 5V.<br />
-                • <b>Servo Mái che (D6)</b>: Mở góc 60°, Đóng góc 120°, tự động <code>detach()</code> sau 650ms để chống rung &amp; sụt áp.
-              </Typography.Text>
-            </div>
           </Card>
         </Col>
 
-        {/* DANH SÁCH CẢNH BÁO ĐANG MỞ */}
+        {/* DANH SÁCH CẢNH BÁO ĐANG MỞ (CÓ GIỚI HẠN CHIỀU CAO VÀ CUỘN KHI DÀI) */}
         <Col xs={24} md={10}>
-          <Card title="Cảnh báo đang mở (Alerts)">
+          <Card 
+            title={
+              <Space>
+                <AlertOutlined style={{ color: '#fa8c16' }} />
+                <span>Cảnh báo đang mở (Alerts)</span>
+                {alerts && alerts.length > 0 && (
+                  <Badge count={alerts.length} style={{ backgroundColor: '#f5222d' }} />
+                )}
+              </Space>
+            }
+            extra={
+              <Dropdown
+                trigger={['click']}
+                menu={{
+                  items: [
+                    {
+                      key: 'test-critical',
+                      label: '🚨 Thử Popup Khẩn cấp (Critical)',
+                      onClick: () => showAlertModal({
+                        severity: 'critical',
+                        message: 'Độ ẩm đất quá thấp (< 15%)! Vui lòng kiểm tra máy bơm và nguồn nước ngay lập tức.',
+                      })
+                    },
+                    {
+                      key: 'test-warning',
+                      label: '⚠️ Thử Popup Cảnh báo (Warning)',
+                      onClick: () => showAlertModal({
+                        severity: 'warning',
+                        message: 'Cường độ ánh sáng cao (> 7500 lux), hệ thống tự động đóng mái che 120°.',
+                      })
+                    },
+                    {
+                      key: 'test-info',
+                      label: 'ℹ️ Thử Popup Thông tin (Info)',
+                      onClick: () => showAlertModal({
+                        severity: 'info',
+                        message: 'Hệ thống tưới tự động đã kích hoạt và hoàn tất chu kỳ tưới bảo vệ cây trồng.',
+                      })
+                    },
+                  ]
+                }}
+              >
+                <Button size="small" type="primary" ghost>
+                  Thử Pop-up ▾
+                </Button>
+              </Dropdown>
+            }
+            bodyStyle={{ maxHeight: 280, overflowY: 'auto', padding: '8px 16px' }}
+          >
             <List
               dataSource={alerts || []}
-              renderItem={(alert) => (
-                <List.Item>
-                  <Typography.Text type={alert.severity === 'critical' ? 'danger' : 'warning'}>
-                    [{alert.severity.toUpperCase()}]
-                  </Typography.Text>{' '}
-                  {alert.message}
-                </List.Item>
-              )}
+              renderItem={(alert) => {
+                const isCritical = alert.severity === 'critical';
+                const isWarning = alert.severity === 'warning';
+                return (
+                  <List.Item
+                    style={{ 
+                      cursor: 'pointer', 
+                      padding: '8px 4px', 
+                      borderBottom: '1px solid #f0f0f0',
+                      transition: 'background 0.2s' 
+                    }}
+                    onClick={() => showAlertModal(alert)}
+                    actions={[
+                      <Button 
+                        key="btn-view" 
+                        size="small" 
+                        type="link"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          showAlertModal(alert);
+                        }}
+                      >
+                        Pop-up
+                      </Button>
+                    ]}
+                  >
+                    <List.Item.Meta
+                      title={
+                        <Space wrap align="center">
+                          <Tag color={isCritical ? 'red' : isWarning ? 'orange' : 'blue'} style={{ margin: 0, fontWeight: 'bold' }}>
+                            {alert.severity.toUpperCase()}
+                          </Tag>
+                          <span style={{ fontSize: 13, color: isCritical ? '#cf1322' : isWarning ? '#d46b08' : '#262626' }}>
+                            {alert.message}
+                          </span>
+                        </Space>
+                      }
+                      description={
+                        <span style={{ fontSize: 11, color: '#8c8c8c' }}>
+                          {formatLocalTime(alert.created_at, 'HH:mm:ss DD/MM/YYYY')}
+                        </span>
+                      }
+                    />
+                  </List.Item>
+                );
+              }}
               locale={{ emptyText: 'Không có cảnh báo' }}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* BIỂU ĐỒ NẰM NGAY TRÊN DASHBOARD TRANG CHỦ */}
-      <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
-        <Col span={24}>
-          <Card 
-            title="Biểu đồ đo lường lịch sử (Độ ẩm đất & Cường độ ánh sáng BH1750)" 
-            extra={
-              <Space wrap>
-                <RangePicker 
-                  value={dateRange} 
-                  onChange={(dates) => { if (dates && dates[0] && dates[1]) setDateRange([dates[0], dates[1]]); }} 
-                  showTime 
-                />
-                <Button icon={<DownloadOutlined />} onClick={handleExport}>Xuất CSV</Button>
-              </Space>
-            }
-          >
-            <Tabs
-              defaultActiveKey="soil"
-              items={[
-                {
-                  key: 'soil',
-                  label: 'Độ ẩm đất (%) - Chân A0',
-                  children: <TelemetryChart data={getTelemetryByType('soil')} sensorType="soil" height={280} />,
-                },
-                {
-                  key: 'light',
-                  label: 'Cường độ ánh sáng (lux) - BH1750 (D1/D2)',
-                  children: <TelemetryChart data={getTelemetryByType('light')} sensorType="light" height={280} />,
-                },
-              ]}
-            />
-          </Card>
-        </Col>
-      </Row>
+      {/* POP-UP MODAL CẢNH BÁO THEO MỨC ĐỘ (CHUẨN REACT 19 JSX COMPONENT) */}
+      <Modal
+        open={!!activeAlert}
+        onCancel={() => setActiveAlert(null)}
+        width={520}
+        destroyOnClose
+        title={
+          activeAlert?.severity === 'critical' ? (
+            <Space>
+              <span style={{ color: '#cf1322', fontSize: 16, fontWeight: 'bold' }}>
+                🚨 CẢNH BÁO NGUY HIỂM / KHẨN CẤP
+              </span>
+            </Space>
+          ) : activeAlert?.severity === 'warning' ? (
+            <Space>
+              <span style={{ color: '#d46b08', fontSize: 16, fontWeight: 'bold' }}>
+                ⚠️ CẢNH BÁO HỆ THỐNG
+              </span>
+            </Space>
+          ) : (
+            <Space>
+              <span style={{ color: '#096dd9', fontSize: 16, fontWeight: 'bold' }}>
+                ℹ️ THÔNG BÁO THIẾT BỊ
+              </span>
+            </Space>
+          )
+        }
+        footer={[
+          <Button key="close" onClick={() => setActiveAlert(null)}>
+            Đóng
+          </Button>,
+          activeAlert?.id ? (
+            <Button
+              key="resolve"
+              type="primary"
+              danger={activeAlert.severity === 'critical'}
+              loading={resolveAlertMutation.isPending}
+              onClick={() => {
+                if (activeAlert.id) {
+                  resolveAlertMutation.mutate(activeAlert.id);
+                }
+              }}
+            >
+              Xác nhận đã xử lý
+            </Button>
+          ) : (
+            <Button
+              key="ack"
+              type="primary"
+              danger={activeAlert?.severity === 'critical'}
+              onClick={() => setActiveAlert(null)}
+            >
+              Đã hiểu
+            </Button>
+          ),
+        ]}
+      >
+        {activeAlert && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Tag
+                color={activeAlert.severity === 'critical' ? 'red' : activeAlert.severity === 'warning' ? 'orange' : 'blue'}
+                style={{ fontWeight: 'bold', fontSize: 12, padding: '2px 8px' }}
+              >
+                MỨC ĐỘ: {(activeAlert.severity || 'warning').toUpperCase()}
+              </Tag>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {formatLocalTime(activeAlert.created_at, 'HH:mm:ss DD/MM/YYYY')}
+              </Typography.Text>
+            </div>
+
+            <div
+              style={{
+                padding: '12px 16px',
+                background:
+                  activeAlert.severity === 'critical'
+                    ? '#fff1f0'
+                    : activeAlert.severity === 'warning'
+                    ? '#fffbe6'
+                    : '#e6f7ff',
+                border: `1px solid ${
+                  activeAlert.severity === 'critical'
+                    ? '#ffa39e'
+                    : activeAlert.severity === 'warning'
+                    ? '#ffe58f'
+                    : '#91d5ff'
+                }`,
+                borderRadius: 8,
+                color:
+                  activeAlert.severity === 'critical'
+                    ? '#a8071a'
+                    : activeAlert.severity === 'warning'
+                    ? '#ad6800'
+                    : '#0050b3',
+                fontSize: 14,
+                fontWeight: 500,
+                lineHeight: 1.6,
+              }}
+            >
+              {activeAlert.message}
+            </div>
+
+            {activeAlert.severity === 'critical' && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: '8px 12px',
+                  background: '#fafafa',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  color: '#595959',
+                }}
+              >
+                🚨 <b>Khuyến nghị:</b> Kiểm tra ngay nguồn nước, máy bơm hoặc kết nối phần cứng tại vườn cây để bảo vệ cây trồng!
+              </div>
+            )}
+            {activeAlert.severity === 'warning' && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: '8px 12px',
+                  background: '#fafafa',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  color: '#595959',
+                }}
+              >
+                ⚡ <b>Ghi chú:</b> Hệ thống IoT có thể đã tự động kích hoạt bảo vệ (đóng mái che hoặc bật bơm). Vui lòng lưu ý theo dõi.
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
+
 export default Dashboard;
