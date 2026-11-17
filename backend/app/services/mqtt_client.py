@@ -87,8 +87,9 @@ class MQTTClientWrapper:
             # (Khô ngoài không khí: raw ~ 1020 -> 0%, Ngâm toàn bộ trong nước: raw ~ 820 -> 100%)
             if sensor_type == "soil" and data.get("raw") is not None:
                 raw_adc = parse_finite_number(data["raw"])
-                if not 0 <= raw_adc <= 1023:
-                    raise ValueError("Soil ADC reading must be between 0 and 1023")
+                # ESP8266 can report 1024 at the upper end of the ADC range.
+                if not 0 <= raw_adc <= 1024:
+                    raise ValueError(f"Soil ADC reading {raw_adc} from {device.device_uid} is outside 0–1024")
                 adc_dry, adc_wet = 1020.0, 820.0
                 calc_pct = (adc_dry - raw_adc) * 100.0 / (adc_dry - adc_wet)
                 value = round(max(0.0, min(100.0, calc_pct)), 1)

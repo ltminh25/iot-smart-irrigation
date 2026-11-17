@@ -12,6 +12,8 @@ ACTION_ALIASES = {
     "roof_open": "curtain_open",
     "roof_close": "curtain_close",
 }
+DEFAULT_PUMP_DURATION_MS = 5000
+COMMAND_RETRY_INTERVAL_SECONDS = 5
 
 def normalize_action(action: str) -> str:
     act = (action or "").strip().lower()
@@ -45,7 +47,7 @@ class CommandService:
 
         normalized_action = normalize_action(action)
         if normalized_action == "pump_on" and not payload:
-            payload = json.dumps({"duration": 5000})
+            payload = json.dumps({"duration": DEFAULT_PUMP_DURATION_MS})
 
         # Huỷ các lệnh đang pending cùng nhóm cơ cấu chấp hành (pump hoặc curtain)
         # để tránh retry lệnh cũ đè lên lệnh mới (gây hiện tượng đóng-mở lặp lại)
@@ -129,7 +131,7 @@ class CommandService:
         mqtt_client_instance.publish_command(device.device_uid, command_id, command.action, payload_dict)
         db.commit()
 
-        timer = threading.Timer(5.0, self._retry_task, args=(device_id, command_id, attempt + 1))
+        timer = threading.Timer(COMMAND_RETRY_INTERVAL_SECONDS, self._retry_task, args=(device_id, command_id, attempt + 1))
         timer.daemon = True
         timer.start()
 
