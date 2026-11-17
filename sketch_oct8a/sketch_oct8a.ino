@@ -71,7 +71,7 @@ const unsigned long MAX_PUMP_MS     = 10000;
 const unsigned long DEFAULT_PUMP_MS = 5000;
 
 // Chu kỳ gửi dữ liệu
-const unsigned long TELEMETRY_INTERVAL_MS = 5000;  // Gửi độ ẩm + ánh sáng mỗi 5 giây
+const unsigned long TELEMETRY_INTERVAL_MS = 2000;  // Gửi độ ẩm + ánh sáng mỗi 2 giây
 const unsigned long HEARTBEAT_INTERVAL_MS = 15000; // Gửi heartbeat mỗi 15 giây
 const unsigned long SERIAL_PRINT_MS       = 2000;  // In Serial mỗi 2 giây
 const unsigned long MQTT_RETRY_MS         = 5000;  // Thử kết nối lại MQTT mỗi 5 giây
