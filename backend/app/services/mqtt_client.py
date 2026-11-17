@@ -1,6 +1,6 @@
 import paho.mqtt.client as mqtt
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from math import isfinite
 from sqlalchemy.dialects.sqlite import insert
 from app.core.config import settings
@@ -142,7 +142,7 @@ class MQTTClientWrapper:
                 "sensor_type": sensor_type,
                 "value": value,
                 "unit": unit,
-                "timestamp": telemetry.timestamp.isoformat()
+                "timestamp": (telemetry.timestamp.replace(tzinfo=timezone.utc) if telemetry.timestamp and telemetry.timestamp.tzinfo is None else telemetry.timestamp).isoformat() if telemetry.timestamp else None
             }
         })
 

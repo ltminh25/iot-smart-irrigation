@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { Table, Badge, Button, Select, Space, Tabs, Card, Tag } from 'antd';
 import { ReloadOutlined, HistoryOutlined, AlertOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import dayjs from 'dayjs';
 import { commandsApi } from '../api/commands';
 import { alertsApi } from '../api/alerts';
 import { devicesApi } from '../api/devices';
+import { formatLocalTime } from '../utils/date';
 
 export const HistoryPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -97,13 +97,13 @@ export const HistoryPage: React.FC = () => {
       title: 'Thời gian gửi', 
       dataIndex: 'issued_at', 
       key: 'issued_at',
-      render: (val: string) => dayjs(val).format('DD/MM/YYYY HH:mm:ss')
+      render: (val: string) => formatLocalTime(val, 'DD/MM/YYYY HH:mm:ss')
     },
     { 
       title: 'Thời gian thực thi', 
       dataIndex: 'executed_at', 
       key: 'executed_at',
-      render: (val: string) => val ? dayjs(val).format('DD/MM/YYYY HH:mm:ss') : '-'
+      render: (val: string) => val ? formatLocalTime(val, 'DD/MM/YYYY HH:mm:ss') : '-'
     },
     { title: 'Thử lại', dataIndex: 'retry_count', key: 'retry_count' },
   ];
@@ -139,7 +139,7 @@ export const HistoryPage: React.FC = () => {
       title: 'Thời gian', 
       dataIndex: 'created_at', 
       key: 'created_at',
-      render: (val: string) => dayjs(val).format('DD/MM/YYYY HH:mm:ss')
+      render: (val: string) => formatLocalTime(val, 'DD/MM/YYYY HH:mm:ss')
     },
     {
       title: 'Xử lý',

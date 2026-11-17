@@ -1,5 +1,5 @@
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.core.database import SessionLocal
 from app.models.models import Device, Alert
 from app.services.device_service import change_device_status
@@ -32,7 +32,7 @@ def check_heartbeats():
                         "id": alert.id,
                         "message": alert.message,
                         "severity": alert.severity,
-                        "created_at": alert.created_at.isoformat() if alert.created_at else None
+                        "created_at": (alert.created_at.replace(tzinfo=timezone.utc) if alert.created_at and alert.created_at.tzinfo is None else alert.created_at).isoformat() if alert.created_at else None
                     }
                 })
     finally:

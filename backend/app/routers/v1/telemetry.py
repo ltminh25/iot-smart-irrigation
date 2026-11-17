@@ -6,7 +6,7 @@ from app.core.deps import can_view_device, get_current_user
 from app.models.models import Telemetry, Device, User
 from app.schemas.schemas import TelemetryResponse
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
@@ -35,12 +35,13 @@ def get_latest_telemetry(
             .first()
         )
         if latest:
+            ts = (latest.timestamp.replace(tzinfo=timezone.utc) if latest.timestamp.tzinfo is None else latest.timestamp).isoformat() if latest.timestamp else None
             result[stype] = {
                 "id": latest.id,
                 "device_id": latest.device_id,
                 "sensor_type": latest.sensor_type,
                 "value": latest.value,
-                "timestamp": latest.timestamp,
+                "timestamp": ts,
                 "unit": latest.unit
             }
     return result
@@ -59,14 +60,19 @@ def export_telemetry(
         Telemetry.sensor_type.in_(["soil", "light"])
     )
     if from_date:
+        if from_date.tzinfo is not None:
+            from_date = from_date.astimezone(timezone.utc).replace(tzinfo=None)
         query = query.filter(Telemetry.timestamp >= from_date)
     if to_date:
+        if to_date.tzinfo is not None:
+            to_date = to_date.astimezone(timezone.utc).replace(tzinfo=None)
         query = query.filter(Telemetry.timestamp <= to_date)
     records = query.order_by(Telemetry.timestamp.asc()).all()
 
     csv_str = "id,sensor_type,value,unit,timestamp\n"
     for r in records:
-        csv_str += f"{r.id},{r.sensor_type},{r.value},{r.unit or ''},{r.timestamp.isoformat()}\n"
+        ts = (r.timestamp.replace(tzinfo=timezone.utc) if r.timestamp and r.timestamp.tzinfo is None else r.timestamp).isoformat() if r.timestamp else ""
+        csv_str += f"{r.id},{r.sensor_type},{r.value},{r.unit or ''},{ts}\n"
     return csv_str
 
 @router.get("", response_model=List[TelemetryResponse])
@@ -82,8 +88,12 @@ def get_telemetry(
     verify_device_access(db, current_user, device_id)
     query = db.query(Telemetry).filter(Telemetry.device_id == device_id)
     if from_date:
+        if from_date.tzinfo is not None:
+            from_date = from_date.astimezone(timezone.utc).replace(tzinfo=None)
         query = query.filter(Telemetry.timestamp >= from_date)
     if to_date:
+        if to_date.tzinfo is not None:
+            to_date = to_date.astimezone(timezone.utc).replace(tzinfo=None)
         query = query.filter(Telemetry.timestamp <= to_date)
     if sensor_type:
         query = query.filter(Telemetry.sensor_type == sensor_type)
