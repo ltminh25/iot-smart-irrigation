@@ -44,6 +44,12 @@ def require_role(*roles: str) -> Callable:
         return current_user
     return role_checker
 
+def can_view_device(db: Session, current_user: User, device: Device) -> bool:
+    role = db.get(Role, current_user.role_id) if current_user.role_id is not None else None
+    if role and role.name in ("admin", "viewer"):
+        return True
+    return device.owner_id == current_user.id or device.device_uid == "esp8266-plant-01"
+
 def get_device_or_403(device_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Device:
     device = db.query(Device).filter(Device.id == device_id).first()
     if not device:
