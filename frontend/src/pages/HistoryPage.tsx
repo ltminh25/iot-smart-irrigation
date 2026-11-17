@@ -160,10 +160,7 @@ export const HistoryPage: React.FC = () => {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Lịch sử Hệ thống</h2>
-          <span style={{ color: '#888' }}>Xem toàn bộ lịch sử điều khiển lệnh và danh sách cảnh báo</span>
-        </div>
+        <span style={{ color: '#888' }}>Xem toàn bộ lịch sử điều khiển lệnh và danh sách cảnh báo</span>
         <Space>
           <Select
             style={{ width: 240 }}
