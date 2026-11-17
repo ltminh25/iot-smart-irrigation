@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, timezone
 import json
 from app.core.websocket import manager
 
-AUTOMATIC_COMMAND_INTERVAL_SECONDS = 8
+PUMP_REST_SECONDS = 1
+MAX_PUMP_DURATION_MS = 10000  # Same limit as the ESP8266 firmware.
 CURTAIN_ACTIONS = ("curtain_open", "curtain_close")
 
 class RuleEngine:
@@ -18,7 +19,7 @@ class RuleEngine:
     """
 
     def evaluate(self, db: Session, device_id: int, new_telemetry: Telemetry):
-        from app.services.command_service import command_service
+        from app.services.command_service import DEFAULT_PUMP_DURATION_MS, command_service
         sensor_type = new_telemetry.sensor_type
         value = new_telemetry.value
 
@@ -33,8 +34,7 @@ class RuleEngine:
 
         # Luật 1: Cường độ ánh sáng cao (> 7500 lux) -> Đóng mái che (góc 120°) + Cảnh báo
         if sensor_type == "light" and value > 7500:
-            if not self._has_recent_command(db, device_id, CURTAIN_ACTIONS):
-                command_service.create_and_send_command(db, device_id, "curtain_close", None, None)
+            command_service.create_and_send_command(db, device_id, "curtain_close", None, None)
             self._create_alert_if_not_recent(
                 db,
                 device_id,
@@ -47,7 +47,7 @@ class RuleEngine:
         # Không tự mở đè lên lệnh đóng thủ công của người dùng khi test trong phòng (< 2000 lux)
         elif sensor_type == "light" and value < 2000:
             last_curtain_action = self._get_last_curtain_action(db, device_id)
-            if last_curtain_action == "curtain_close" and not self._has_recent_command(db, device_id, CURTAIN_ACTIONS):
+            if last_curtain_action == "curtain_close":
                 command_service.create_and_send_command(db, device_id, "curtain_open", None, None)
 
         # Luật 3 & 4: Độ ẩm đất thấp (< 30%) -> Xét điều kiện ánh sáng để tự động bật bơm 5 giây
@@ -75,21 +75,38 @@ class RuleEngine:
                 )
             else:
                 # Tự động bật bơm 5 giây nếu đã qua khoảng chờ giữa các lần tưới.
-                if not self._has_recent_command(db, device_id, ("pump_on",)):
-                    payload = json.dumps({"duration": 5000})
+                if self._can_start_pump(db, device_id):
+                    payload = json.dumps({"duration": DEFAULT_PUMP_DURATION_MS})
                     command_service.create_and_send_command(db, device_id, "pump_on", payload, None)
 
-    def _has_recent_command(self, db: Session, device_id: int, actions: tuple[str, ...]) -> bool:
-        try:
-            cutoff = datetime.utcnow() - timedelta(seconds=AUTOMATIC_COMMAND_INTERVAL_SECONDS)
-            recent = db.query(Command).filter(
-                Command.device_id == device_id,
-                Command.action.in_(actions),
-                Command.issued_at > cutoff
-            ).first()
-            return bool(recent and getattr(recent, "id", None) is not None)
-        except Exception:
+    def _can_start_pump(self, db: Session, device_id: int) -> bool:
+        from app.services.command_service import (
+            COMMAND_RETRY_INTERVAL_SECONDS, DEFAULT_PUMP_DURATION_MS, parse_payload_dict,
+        )
+
+        last_start = db.query(Command).filter(
+            Command.device_id == device_id, Command.action == "pump_on",
+        ).order_by(Command.issued_at.desc(), Command.id.desc()).first()
+        if last_start is None:
+            return True
+        if last_start.status == "pending":
             return False
+
+        duration = parse_payload_dict(last_start.payload).get("duration", DEFAULT_PUMP_DURATION_MS)
+        try:
+            duration_ms = int(duration) if not isinstance(duration, bool) else DEFAULT_PUMP_DURATION_MS
+        except (TypeError, ValueError, OverflowError):
+            duration_ms = DEFAULT_PUMP_DURATION_MS
+        if duration_ms <= 0:
+            duration_ms = DEFAULT_PUMP_DURATION_MS
+        duration_ms = min(duration_ms, MAX_PUMP_DURATION_MS)
+
+        last_retry_seconds = (last_start.retry_count or 0) * COMMAND_RETRY_INTERVAL_SECONDS
+        started_at = last_start.executed_at or (
+            last_start.issued_at + timedelta(seconds=last_retry_seconds)
+        )
+        next_start = started_at + timedelta(milliseconds=duration_ms, seconds=PUMP_REST_SECONDS)
+        return datetime.utcnow() >= next_start
 
     def _get_last_curtain_action(self, db: Session, device_id: int):
         try:

@@ -41,7 +41,8 @@ def receiver(tmp_path, monkeypatch):
     {"value": float("nan")},
     {"value": float("inf")},
     {"value": 110},
-    {"raw": 1024},
+    {"raw": -1},
+    {"raw": 1025},
     {"raw": "NaN"},
     {"value": 50, "sample_id": ""},
 ])
@@ -82,3 +83,13 @@ def test_legacy_publishers_can_report_the_same_value_twice(receiver):
     with sessions() as db:
         assert [row.value for row in db.query(Telemetry).all()] == [0, 0]
     assert len(evaluated) == 2
+
+
+@pytest.mark.parametrize("raw", [1023, 1024])
+def test_soil_adc_at_upper_limit_is_saved_as_dry(receiver, raw):
+    sessions, receive, evaluated, broadcast = receiver
+    receive({"raw": raw})
+    with sessions() as db:
+        assert db.query(Telemetry).one().value == 0
+    assert len(evaluated) == 1
+    assert any(event["type"] == "telemetry" for event in broadcast)
