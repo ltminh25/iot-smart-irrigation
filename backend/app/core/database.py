@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, declarative_base
 from .config import settings
 from passlib.context import CryptContext
@@ -20,7 +20,17 @@ def get_db():
 def init_db():
     # Nhập models tại đây để SQLAlchemy Base thu thập meta
     from app.models.models import Role, User, Device, DeviceLifecycleLog, AlertRule
-    Base.metadata.create_all(bind=engine)
+    with engine.begin() as connection:
+        # Serialize schema setup across SQLite connections, including upgrades.
+        connection.exec_driver_sql("BEGIN IMMEDIATE")
+        Base.metadata.create_all(bind=connection)
+        columns = inspect(connection).get_columns("telemetry")
+        if not any(column["name"] == "sample_id" for column in columns):
+            connection.exec_driver_sql("ALTER TABLE telemetry ADD COLUMN sample_id VARCHAR(128)")
+        connection.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_telemetry_sample "
+            "ON telemetry (device_id, sensor_type, sample_id)"
+        )
     
     db = SessionLocal()
     try:

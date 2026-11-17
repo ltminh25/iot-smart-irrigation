@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.core.database import Base
@@ -47,9 +47,13 @@ class DeviceLifecycleLog(Base):
 
 class Telemetry(Base):
     __tablename__ = "telemetry"
+    __table_args__ = (
+        Index("ux_telemetry_sample", "device_id", "sensor_type", "sample_id", unique=True),
+    )
     id = Column(Integer, primary_key=True, autoincrement=True)
     device_id = Column(Integer, ForeignKey("devices.id"))
     sensor_type = Column(String)
+    sample_id = Column(String(128), nullable=True)
     value = Column(Float)
     unit = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)

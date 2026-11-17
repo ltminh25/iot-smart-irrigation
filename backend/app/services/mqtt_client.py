@@ -1,6 +1,8 @@
 import paho.mqtt.client as mqtt
 import json
 from datetime import datetime
+from math import isfinite
+from sqlalchemy.dialects.sqlite import insert
 from app.core.config import settings
 from app.models.models import Device, Telemetry
 from app.services.rule_engine import rule_engine
@@ -15,6 +17,14 @@ DEFAULT_UNITS = {
     "soil": "%",
     "light": "lux",
 }
+
+def parse_finite_number(value):
+    if isinstance(value, bool):
+        raise ValueError("Boolean is not a sensor reading")
+    number = float(value)
+    if not isfinite(number):
+        raise ValueError("Sensor reading must be finite")
+    return number
 
 class MQTTClientWrapper:
     def __init__(self):
@@ -70,15 +80,20 @@ class MQTTClientWrapper:
     def handle_telemetry(self, db, device, sensor_type, payload):
         try:
             data = json.loads(payload)
-            value = float(data.get("value", 0))
+            if not isinstance(data, dict):
+                raise ValueError("Telemetry must be a JSON object")
 
             # Nếu bản tin soil có kèm giá trị ADC thô ("raw"), tính lại % theo dải thực tế của mạch 3.3V
             # (Khô ngoài không khí: raw ~ 1020 -> 0%, Ngâm toàn bộ trong nước: raw ~ 820 -> 100%)
             if sensor_type == "soil" and data.get("raw") is not None:
-                raw_adc = float(data.get("raw"))
+                raw_adc = parse_finite_number(data["raw"])
+                if not 0 <= raw_adc <= 1023:
+                    raise ValueError("Soil ADC reading must be between 0 and 1023")
                 adc_dry, adc_wet = 1020.0, 820.0
                 calc_pct = (adc_dry - raw_adc) * 100.0 / (adc_dry - adc_wet)
                 value = round(max(0.0, min(100.0, calc_pct)), 1)
+            else:
+                value = parse_finite_number(data.get("value"))
 
             # Validate khoảng giá trị hợp lệ
             if sensor_type in VALID_RANGES:
@@ -88,39 +103,48 @@ class MQTTClientWrapper:
                     return
 
             unit = data.get("unit") or DEFAULT_UNITS.get(sensor_type)
-            telemetry = Telemetry(
-                device_id=device.id,
-                sensor_type=sensor_type,
-                value=value,
-                unit=unit
-            )
-            db.add(telemetry)
-            
-            device.last_heartbeat_at = datetime.utcnow()
-            if device.status in ["registered", "provisioned", "offline"]:
-                from app.services.device_service import change_device_status
-                change_device_status(db, device, "active")
-            else:
-                db.commit()
-
-            db.refresh(telemetry)
-            rule_engine.evaluate(db, device.id, telemetry)
-            
-            # Broadcast realtime qua WebSocket
-            manager.broadcast_sync(str(device.id), {
-                "type": "telemetry",
-                "data": {
-                    "id": telemetry.id,
-                    "device_id": device.id,
-                    "sensor_type": sensor_type,
-                    "value": value,
-                    "unit": unit,
-                    "timestamp": telemetry.timestamp.isoformat()
-                }
-            })
-                
-        except (ValueError, TypeError, json.JSONDecodeError) as e:
+            if unit is not None and not isinstance(unit, str):
+                raise ValueError("Telemetry unit must be a string")
+            sample_id = data.get("sample_id")
+            if sample_id is not None:
+                if not isinstance(sample_id, str) or not sample_id.strip() or len(sample_id) > 128:
+                    raise ValueError("sample_id must be a non-empty string of at most 128 characters")
+        except (ValueError, TypeError, OverflowError) as e:
             print(f"Invalid telemetry payload: {e}")
+            return
+
+        statement = insert(Telemetry.__table__).values(
+            device_id=device.id,
+            sensor_type=sensor_type,
+            sample_id=sample_id,
+            value=value,
+            unit=unit,
+        ).on_conflict_do_nothing(index_elements=["device_id", "sensor_type", "sample_id"])
+        result = db.execute(statement)
+        if result.rowcount == 0:
+            return
+
+        telemetry_id = result.inserted_primary_key[0]
+        device.last_heartbeat_at = datetime.utcnow()
+        if device.status in ["registered", "provisioned", "offline"]:
+            from app.services.device_service import change_device_status
+            change_device_status(db, device, "active")
+        else:
+            db.commit()
+
+        telemetry = db.get(Telemetry, telemetry_id)
+        rule_engine.evaluate(db, device.id, telemetry)
+        manager.broadcast_sync(str(device.id), {
+            "type": "telemetry",
+            "data": {
+                "id": telemetry.id,
+                "device_id": device.id,
+                "sensor_type": sensor_type,
+                "value": value,
+                "unit": unit,
+                "timestamp": telemetry.timestamp.isoformat()
+            }
+        })
 
     def handle_status(self, db, device, payload):
         from app.services.device_service import change_device_status
