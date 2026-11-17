@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Row, Col, Select, Badge, Card, List, Button, message, Space, Typography, Tag, notification, Switch, Tooltip, Modal, Tabs, DatePicker } from 'antd';
 import { BulbOutlined, ExperimentOutlined, ThunderboltOutlined, LockOutlined, UnlockOutlined, ToolOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,14 +10,16 @@ import { commandsApi } from '../api/commands';
 import { SensorCard } from '../components/SensorCard';
 import { TelemetryChart } from '../components/TelemetryChart';
 import { useWebSocket } from '../hooks/useWebSocket';
+import type { DeviceMessage } from '../hooks/useWebSocket';
 import { useAuthStore } from '../store/authStore';
+import type { Device, Telemetry } from '../types';
 
 const { RangePicker } = DatePicker;
 
 export const Dashboard: React.FC = () => {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
+  const [requestedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([dayjs().subtract(1, 'day'), dayjs()]);
 
   const { data: devices } = useQuery({
@@ -26,14 +28,12 @@ export const Dashboard: React.FC = () => {
     refetchInterval: 5000,
   });
 
-  useEffect(() => {
-    if (devices && devices.length > 0 && !selectedDeviceId) {
-      const esp8266Device = devices.find(d => d.device_uid === 'esp8266-plant-01');
-      setSelectedDeviceId(esp8266Device ? esp8266Device.id : devices[0].id);
-    }
-  }, [devices, selectedDeviceId]);
+  const selectedDevice = devices?.find(device => device.id === requestedDeviceId)
+    ?? devices?.find(device => device.device_uid === 'esp8266-plant-01')
+    ?? devices?.[0];
+  const selectedDeviceId = selectedDevice?.id ?? null;
 
-  const { data: initialTelemetry } = useQuery({
+  const { data: realtimeTelemetry } = useQuery({
     queryKey: ['telemetry', 'latest', selectedDeviceId],
     queryFn: () => telemetryApi.latest(selectedDeviceId!),
     enabled: !!selectedDeviceId,
@@ -59,66 +59,60 @@ export const Dashboard: React.FC = () => {
     refetchInterval: 5000,
   });
 
-  const { lastMessage, isConnected } = useWebSocket(selectedDeviceId);
-  const [realtimeTelemetry, setRealtimeTelemetry] = useState<Record<string, any>>({});
-  const [deviceStatus, setDeviceStatus] = useState<string>('');
-  const [lastCmdStatus, setLastCmdStatus] = useState<string>('');
+  const [lastCommand, setLastCommand] = useState<{ deviceId: number | null; label: string } | null>(null);
+  const lastCmdStatus = lastCommand?.deviceId === selectedDeviceId ? lastCommand.label : '';
 
-  useEffect(() => {
-    if (initialTelemetry) {
-      setRealtimeTelemetry(initialTelemetry);
-    }
-  }, [initialTelemetry]);
+  const updateDeviceStatus = useCallback((deviceId: number, status: string) => {
+    queryClient.setQueryData<Device[]>(['devices'], previous =>
+      previous?.map(device => device.id === deviceId ? { ...device, status } : device)
+    );
+    queryClient.invalidateQueries({ queryKey: ['devices'] });
+  }, [queryClient]);
 
   // Toast thông báo (Notification) khi có cảnh báo mới qua WebSocket
-  useEffect(() => {
-    if (lastMessage) {
-      if (lastMessage.type === 'telemetry') {
-        setRealtimeTelemetry(prev => ({
-          ...prev,
-          [lastMessage.data.sensor_type]: lastMessage.data
-        }));
-      } else if (lastMessage.type === 'alert') {
-        refetchAlerts();
-        const severity = lastMessage.data?.severity || 'warning';
-        const msg = lastMessage.data?.message || 'Có cảnh báo mới từ thiết bị!';
-        if (severity === 'critical') {
-          notification.error({
-            message: '⚠️ CẢNH BÁO KHẨN CẤP',
-            description: msg,
-            placement: 'topRight',
-            duration: 6,
-          });
-        } else {
-          notification.warning({
-            message: '🔔 Cảnh báo hệ thống',
-            description: msg,
-            placement: 'topRight',
-            duration: 5,
-          });
-        }
-      } else if (lastMessage.type === 'device_status') {
-        setDeviceStatus(lastMessage.data.status);
-        queryClient.invalidateQueries({ queryKey: ['devices'] });
-      } else if (lastMessage.type === 'device_lock') {
-        queryClient.invalidateQueries({ queryKey: ['devices'] });
-      } else if (lastMessage.type === 'command_ack') {
-        setLastCmdStatus(`${lastMessage.data.action}: ${lastMessage.data.status.toUpperCase()}`);
+  const handleDeviceMessage = useCallback((event: DeviceMessage) => {
+    if (event.type === 'telemetry') {
+      queryClient.setQueryData<Record<string, Telemetry>>(['telemetry', 'latest', event.data.device_id], prev => ({
+        ...prev,
+        [event.data.sensor_type]: event.data
+      }));
+    } else if (event.type === 'alert') {
+      refetchAlerts();
+      const severity = event.data?.severity || 'warning';
+      const msg = event.data?.message || 'Có cảnh báo mới từ thiết bị!';
+      if (severity === 'critical') {
+        notification.error({
+          message: '⚠️ CẢNH BÁO KHẨN CẤP',
+          description: msg,
+          placement: 'topRight',
+          duration: 6,
+        });
+      } else {
+        notification.warning({
+          message: '🔔 Cảnh báo hệ thống',
+          description: msg,
+          placement: 'topRight',
+          duration: 5,
+        });
       }
+    } else if (event.type === 'device_status') {
+      updateDeviceStatus(event.data.device_id, event.data.status);
+    } else if (event.type === 'device_lock') {
+      queryClient.invalidateQueries({ queryKey: ['devices'] });
+    } else if (event.type === 'command_ack') {
+      setLastCommand({ deviceId: selectedDeviceId, label: `${event.data.action}: ${event.data.status.toUpperCase()}` });
     }
-  }, [lastMessage, refetchAlerts, queryClient]);
+  }, [selectedDeviceId, refetchAlerts, queryClient, updateDeviceStatus]);
+  const { isConnected } = useWebSocket(selectedDeviceId, handleDeviceMessage);
 
-  const selectedDevice = devices?.find(d => d.id === selectedDeviceId);
-  const currentStatus = deviceStatus || selectedDevice?.status || 'offline';
+  const currentStatus = selectedDevice?.status || 'offline';
   const isMaintenance = currentStatus === 'maintenance';
+  const isDecommissioned = currentStatus === 'decommissioned';
   const isAdmin = user?.role === 'admin';
   const isStaff = user?.role === 'viewer';
   
-  // Quyền điều khiển:
-  // - Admin luôn có quyền (kể cả khi bảo trì)
-  // - Owner có quyền nếu thiết bị không bảo trì
-  // - Staff (viewer) có quyền nếu thiết bị không bảo trì và chưa bị khóa
-  const canOperateDevice = isAdmin || (!isMaintenance);
+  // Khi bảo trì, chỉ admin có quyền điều khiển.
+  const canOperateDevice = !!selectedDevice && !isDecommissioned && (isAdmin || !isMaintenance);
 
   const lockMutation = useMutation({
     mutationFn: (data: { pump_locked?: boolean; curtain_locked?: boolean }) => 
@@ -135,8 +129,7 @@ export const Dashboard: React.FC = () => {
   const maintenanceMutation = useMutation({
     mutationFn: (nextStatus: string) => devicesApi.updateStatus(selectedDeviceId!, nextStatus),
     onSuccess: (updated) => {
-      setDeviceStatus(updated.status);
-      queryClient.invalidateQueries({ queryKey: ['devices'] });
+      updateDeviceStatus(updated.id, updated.status);
       message.success(`Đã chuyển chế độ: ${updated.status.toUpperCase()}`);
     },
     onError: (err: any) => {
@@ -145,7 +138,7 @@ export const Dashboard: React.FC = () => {
   });
 
   const handleCommand = async (action: string, label: string) => {
-    if (!selectedDeviceId) return;
+    if (!selectedDeviceId || !canOperateDevice) return;
     try {
       await commandsApi.send({ device_id: selectedDeviceId, action });
       message.success(`Đã gửi lệnh: ${label} (${action})`);
@@ -182,8 +175,8 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const soilValue = realtimeTelemetry['soil']?.value ?? 0;
-  const lightValue = realtimeTelemetry['light']?.value ?? 0;
+  const soilValue = realtimeTelemetry?.soil?.value ?? 0;
+  const lightValue = realtimeTelemetry?.light?.value ?? 0;
 
   const isPumpLockedForStaff = isStaff && !!selectedDevice?.pump_locked;
   const isCurtainLockedForStaff = isStaff && !!selectedDevice?.curtain_locked;
@@ -209,6 +202,7 @@ export const Dashboard: React.FC = () => {
                   <Typography.Text style={{ fontSize: 13 }}>Bảo trì:</Typography.Text>
                   <Switch
                     checked={isMaintenance}
+                    disabled={isDecommissioned}
                     loading={maintenanceMutation.isPending}
                     onChange={(checked) => maintenanceMutation.mutate(checked ? 'maintenance' : 'active')}
                   />
@@ -225,7 +219,10 @@ export const Dashboard: React.FC = () => {
               style={{ width: 260 }}
               placeholder="Chọn thiết bị"
               value={selectedDeviceId}
-              onChange={setSelectedDeviceId}
+              onChange={(id) => {
+                setSelectedDeviceId(id);
+                queryClient.invalidateQueries({ queryKey: ['devices'] });
+              }}
               options={devices?.map(d => ({ label: `${d.name} (${d.device_uid})`, value: d.id }))}
             />
           </Space>

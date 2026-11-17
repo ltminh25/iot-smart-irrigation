@@ -1,3 +1,4 @@
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.models import Command, AuditLog, Device
 from app.core.websocket import manager
@@ -32,9 +33,15 @@ class CommandService:
         self._pending_acks = {}
 
     def create_and_send_command(self, db: Session, device_id: int, action: str, payload: str = None, issued_by_user_id: int = None) -> Command:
-        device = db.query(Device).filter(Device.id == device_id).first()
+        db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+        device = db.get(Device, device_id, populate_existing=True)
         if not device:
-            raise Exception("Device not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+        if device.status == "decommissioned":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Thiết bị đã ngừng sử dụng. Không thể điều khiển.",
+            )
 
         normalized_action = normalize_action(action)
         if normalized_action == "pump_on" and not payload:
@@ -71,21 +78,12 @@ class CommandService:
             db.add(audit)
             
         db.commit()
-        db.refresh(command)
-
-        # Publish
-        payload_dict = parse_payload_dict(payload)
-        if mqtt_client_instance:
-            mqtt_client_instance.publish_command(device.device_uid, command_id, normalized_action, payload_dict)
-
-        # Schedule retry
-        timer = threading.Timer(5.0, self._retry_task, args=(device_id, command_id, 1))
-        timer.daemon = True
-        timer.start()
+        self._publish_pending_command(db, device_id, command_id, attempt=0)
 
         return command
 
     def handle_ack(self, db: Session, command_id: str, status: str):
+        db.connection().exec_driver_sql("BEGIN IMMEDIATE")
         command = db.query(Command).filter(Command.command_id == command_id).first()
         if command and command.status == "pending":
             command.status = status
@@ -103,40 +101,41 @@ class CommandService:
                 }
             })
 
+    def _publish_pending_command(self, db: Session, device_id: int, command_id: str, attempt: int):
+        # Serialize the state check and MQTT publish with device status changes.
+        db.connection().exec_driver_sql("BEGIN IMMEDIATE")
+        command = db.query(Command).filter(Command.command_id == command_id).first()
+        if not command or command.status != "pending":
+            db.commit()
+            return
+
+        device = db.get(Device, device_id, populate_existing=True)
+        if not device or device.status == "decommissioned" or attempt >= 3:
+            command.status = "failed"
+            db.commit()
+            manager.broadcast_sync(str(device_id), {
+                "type": "command_ack",
+                "data": {
+                    "command_id": command_id,
+                    "action": command.action,
+                    "status": "failed"
+                }
+            })
+            return
+
+        if attempt:
+            command.retry_count = attempt
+        payload_dict = parse_payload_dict(command.payload)
+        mqtt_client_instance.publish_command(device.device_uid, command_id, command.action, payload_dict)
+        db.commit()
+
+        timer = threading.Timer(5.0, self._retry_task, args=(device_id, command_id, attempt + 1))
+        timer.daemon = True
+        timer.start()
+
     def _retry_task(self, device_id: int, command_id: str, attempt: int):
         from app.core.database import SessionLocal
-        db = SessionLocal()
-        try:
-            command = db.query(Command).filter(Command.command_id == command_id).first()
-            if not command or command.status != "pending":
-                return
-
-            if attempt >= 3:
-                command.status = "failed"
-                db.commit()
-                manager.broadcast_sync(str(device_id), {
-                    "type": "command_ack",
-                    "data": {
-                        "command_id": command.command_id,
-                        "action": command.action,
-                        "status": "failed"
-                    }
-                })
-                return
-
-            command.retry_count = attempt
-            db.commit()
-
-            device = db.query(Device).filter(Device.id == device_id).first()
-            if device and mqtt_client_instance:
-                payload_dict = parse_payload_dict(command.payload)
-                mqtt_client_instance.publish_command(device.device_uid, command_id, command.action, payload_dict)
-
-            # Schedule next retry
-            timer = threading.Timer(5.0, self._retry_task, args=(device_id, command_id, attempt + 1))
-            timer.daemon = True
-            timer.start()
-        finally:
-            db.close()
+        with SessionLocal() as db:
+            self._publish_pending_command(db, device_id, command_id, attempt)
 
 command_service = CommandService()

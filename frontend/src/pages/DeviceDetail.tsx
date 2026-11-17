@@ -47,10 +47,13 @@ export const DeviceDetail: React.FC = () => {
     enabled: !!deviceId,
   });
 
-  const canControl = user?.role === 'admin' || (user?.role === 'owner' && (device?.owner_id === user?.id || device?.device_uid === 'esp8266-plant-01'));
+  const canControl = !!device && device.status !== 'decommissioned' && (
+    user?.role === 'admin' ||
+    (user?.role === 'owner' && (device.owner_id === user.id || device.device_uid === 'esp8266-plant-01'))
+  );
 
   const handleCommand = async (action: string, label: string) => {
-    if (!deviceId) return;
+    if (!deviceId || !canControl) return;
     try {
       await commandsApi.send({ device_id: deviceId, action });
       message.success(`Đã gửi lệnh: ${label}`);

@@ -1,5 +1,6 @@
+from sqlalchemy import update
 from sqlalchemy.orm import Session
-from app.models.models import Device, DeviceLifecycleLog
+from app.models.models import Command, Device, DeviceLifecycleLog
 from app.core.websocket import manager
 import secrets
 import random
@@ -25,7 +26,25 @@ def change_device_status(db: Session, device: Device, new_status: str, changed_b
     if new_status not in VALID_TRANSITIONS[current_status]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid transition from {current_status} to {new_status}")
     
-    device.status = new_status
+    changed = db.execute(
+        update(Device)
+        .where(Device.id == device.id, Device.status == current_status)
+        .values(status=new_status)
+    )
+    if changed.rowcount == 0:
+        db.rollback()
+        db.refresh(device)
+        if changed_by_user_id is not None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Device status changed concurrently")
+        return device
+
+    if new_status == "decommissioned":
+        db.execute(
+            update(Command)
+            .where(Command.device_id == device.id, Command.status == "pending")
+            .values(status="failed")
+        )
+
     log = DeviceLifecycleLog(
         device_id=device.id,
         from_state=current_status,
