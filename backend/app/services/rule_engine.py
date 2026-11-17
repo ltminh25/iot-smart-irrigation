@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 import json
 from app.core.websocket import manager
 
+AUTOMATIC_COMMAND_INTERVAL_SECONDS = 8
+CURTAIN_ACTIONS = ("curtain_open", "curtain_close")
+
 class RuleEngine:
     """
     Rule Engine đánh giá dữ liệu thời gian thực từ phần cứng ESP8266:
@@ -30,7 +33,7 @@ class RuleEngine:
 
         # Luật 1: Cường độ ánh sáng cao (> 7500 lux) -> Đóng mái che (góc 120°) + Cảnh báo
         if sensor_type == "light" and value > 7500:
-            if not self._has_recent_command(db, device_id, "curtain_close", seconds=60):
+            if not self._has_recent_command(db, device_id, CURTAIN_ACTIONS):
                 command_service.create_and_send_command(db, device_id, "curtain_close", None, None)
             self._create_alert_if_not_recent(
                 db,
@@ -44,7 +47,7 @@ class RuleEngine:
         # Không tự mở đè lên lệnh đóng thủ công của người dùng khi test trong phòng (< 2000 lux)
         elif sensor_type == "light" and value < 2000:
             last_curtain_action = self._get_last_curtain_action(db, device_id)
-            if last_curtain_action == "curtain_close":
+            if last_curtain_action == "curtain_close" and not self._has_recent_command(db, device_id, CURTAIN_ACTIONS):
                 command_service.create_and_send_command(db, device_id, "curtain_open", None, None)
 
         # Luật 3 & 4: Độ ẩm đất thấp (< 30%) -> Xét điều kiện ánh sáng để tự động bật bơm 5 giây
@@ -71,18 +74,18 @@ class RuleEngine:
                     minutes=15
                 )
             else:
-                # Tự động bật bơm 5 giây (có cooldown 60 giây để chờ nước ngấm)
-                if not self._has_recent_command(db, device_id, "pump_on", seconds=60):
+                # Tự động bật bơm 5 giây nếu đã qua khoảng chờ giữa các lần tưới.
+                if not self._has_recent_command(db, device_id, ("pump_on",)):
                     payload = json.dumps({"duration": 5000})
                     command_service.create_and_send_command(db, device_id, "pump_on", payload, None)
 
-    def _has_recent_command(self, db: Session, device_id: int, action: str, seconds: int = 30) -> bool:
+    def _has_recent_command(self, db: Session, device_id: int, actions: tuple[str, ...]) -> bool:
         try:
-            cutoff = datetime.utcnow() - timedelta(seconds=seconds)
+            cutoff = datetime.utcnow() - timedelta(seconds=AUTOMATIC_COMMAND_INTERVAL_SECONDS)
             recent = db.query(Command).filter(
                 Command.device_id == device_id,
-                Command.action == action,
-                Command.issued_at >= cutoff
+                Command.action.in_(actions),
+                Command.issued_at > cutoff
             ).first()
             return bool(recent and getattr(recent, "id", None) is not None)
         except Exception:
@@ -92,7 +95,7 @@ class RuleEngine:
         try:
             last_cmd = db.query(Command).filter(
                 Command.device_id == device_id,
-                Command.action.in_(["curtain_open", "curtain_close"])
+                Command.action.in_(CURTAIN_ACTIONS)
             ).order_by(Command.issued_at.desc()).first()
             # Chỉ trả về "curtain_close" nếu lệnh đóng đó là lệnh tự động (issued_by is None)
             if last_cmd and getattr(last_cmd, "issued_by", None) is None and isinstance(getattr(last_cmd, "action", None), str):

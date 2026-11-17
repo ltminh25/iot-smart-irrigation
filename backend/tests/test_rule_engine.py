@@ -1,6 +1,11 @@
 import json
+from datetime import datetime, timedelta
+
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 from unittest.mock import patch, MagicMock
+from app.core.database import Base
 from app.services.rule_engine import RuleEngine
 from app.models.models import Telemetry, Command
 
@@ -25,6 +30,7 @@ def test_light_low_reopens_curtain_when_closed(db_session):
     telemetry = Telemetry(sensor_type="light", value=1000)
 
     with patch.object(engine, "_get_last_curtain_action", return_value="curtain_close"), \
+         patch.object(engine, "_has_recent_command", return_value=False), \
          patch("app.services.command_service.command_service.create_and_send_command") as mock_cmd:
         engine.evaluate(db_session, 1, telemetry)
         mock_cmd.assert_called_once_with(db_session, 1, "curtain_open", None, None)
@@ -55,3 +61,38 @@ def test_dry_soil_high_light_delays_pump_and_alerts(db_session):
         engine.evaluate(db_session, 1, telemetry)
         mock_cmd.assert_not_called()
         mock_alert.assert_called_once()
+
+
+@pytest.mark.parametrize(("sensor_type", "value", "previous_action", "expected_action"), [
+    ("light", 1000, "curtain_close", "curtain_open"),
+    ("light", 9000, "curtain_open", "curtain_close"),
+    ("light", 9000, "curtain_close", "curtain_close"),
+    ("soil", 20, "pump_on", "pump_on"),
+])
+@pytest.mark.parametrize("seconds_since_command", [7, 8])
+def test_automatic_commands_wait_eight_seconds_per_actuator(
+    sensor_type, value, previous_action, expected_action, seconds_since_command
+):
+    db_engine = create_engine("sqlite://")
+    Base.metadata.create_all(db_engine)
+    now = datetime(2026, 1, 1)
+    other_action = "pump_on" if sensor_type == "light" else "curtain_close"
+    with Session(db_engine) as db:
+        db.add_all([
+            Command(device_id=1, action=previous_action, issued_at=now - timedelta(seconds=seconds_since_command)),
+            Command(device_id=1, action=other_action, issued_at=now),
+        ])
+        db.commit()
+
+        engine = RuleEngine()
+        with patch("app.services.rule_engine.datetime") as clock, \
+             patch.object(engine, "_create_alert_if_not_recent"), \
+             patch("app.services.command_service.command_service.create_and_send_command") as send:
+            clock.utcnow.return_value = now
+            engine.evaluate(db, 1, Telemetry(sensor_type=sensor_type, value=value))
+            if seconds_since_command == 7:
+                send.assert_not_called()
+            else:
+                payload = json.dumps({"duration": 5000}) if expected_action == "pump_on" else None
+                send.assert_called_once_with(db, 1, expected_action, payload, None)
+    db_engine.dispose()
