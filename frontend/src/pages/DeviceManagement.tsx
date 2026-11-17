@@ -229,10 +229,7 @@ void loop() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Quản lý thiết bị IoT</h2>
-          <Text type="secondary">Đăng ký và quản lý các node cảm biến ESP8266/ESP32 trong hệ thống</Text>
-        </div>
+        <Text type="secondary">Đăng ký và quản lý các node cảm biến ESP8266/ESP32 trong hệ thống</Text>
         {(user?.role === 'admin' || user?.role === 'owner' || user?.role === 'user') && (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)}>
             Thêm thiết bị mới
