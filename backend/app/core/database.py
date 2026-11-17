@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, declarative_base
 from .config import settings
-from passlib.context import CryptContext
+from .security import hash_password
 import secrets
 
 engine = create_engine(
@@ -46,17 +46,16 @@ def init_db():
         admin_role = db.query(Role).filter(Role.name == "admin").first()
         admin_user = db.query(User).filter(User.username == "admin").first()
         if admin_role and not admin_user:
-            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-            hashed_pw = pwd_context.hash("admin123")
             admin_user = User(
-                username="admin", 
-                password_hash=hashed_pw, 
-                email="admin@iot.local", 
-                role_id=admin_role.id
+                username="admin",
+                password_hash=hash_password("admin123"),
+                role_id=admin_role.id,
             )
             db.add(admin_user)
             db.commit()
-            db.refresh(admin_user)
+        elif admin_user and admin_user.email == "admin@iot.local":
+            admin_user.email = None
+            db.commit()
 
         # 3. Seed thiết bị phần cứng mặc định esp8266-plant-01
         if admin_user:
@@ -81,9 +80,6 @@ def init_db():
                     to_state="active",
                     changed_by=admin_user.id
                 ))
-                db.commit()
-            elif default_device.status == "decommissioned":
-                default_device.status = "active"
                 db.commit()
 
         # 4. Seed cấu hình luật cảnh báo/tự động mặc định cho Độ ẩm đất & Ánh sáng BH1750

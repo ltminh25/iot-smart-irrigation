@@ -15,7 +15,8 @@ def check_heartbeats():
         active_devices = db.query(Device).filter(Device.status == 'active').all()
         for device in active_devices:
             if device.last_heartbeat_at is None or device.last_heartbeat_at < timeout_threshold:
-                change_device_status(db, device, 'offline')
+                if change_device_status(db, device, 'offline').status != 'offline':
+                    continue
                 alert = Alert(
                     device_id=device.id,
                     message=f"Thiết bị {device.name} ({device.device_uid}) mất kết nối quá {settings.HEARTBEAT_TIMEOUT_SECONDS}s",
