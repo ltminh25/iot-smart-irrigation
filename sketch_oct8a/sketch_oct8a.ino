@@ -18,8 +18,8 @@
  * Giao tiếp:
  *   - MQTT Broker: broker.hivemq.com:1883 (Device UID: esp8266-plant-01)
  *     + Publish:
- *         plant/esp8266-plant-01/telemetry/soil   {"deviceId":"esp8266-plant-01","type":"soil","value":...,"unit":"%"}
- *         plant/esp8266-plant-01/telemetry/light  {"deviceId":"esp8266-plant-01","type":"light","value":...,"unit":"lux"}
+ *         plant/esp8266-plant-01/telemetry/soil   {"deviceId":"esp8266-plant-01","type":"soil","value":...,"unit":"%","sample_id":"..."}
+ *         plant/esp8266-plant-01/telemetry/light  {"deviceId":"esp8266-plant-01","type":"light","value":...,"unit":"lux","sample_id":"..."}
  *         plant/esp8266-plant-01/status           {"deviceId":"esp8266-plant-01","status":"online","uptime":...,"firmwareVersion":"1.0.0"}
  *         plant/esp8266-plant-01/ack              {"command_id":"...","deviceId":"esp8266-plant-01","status":"executed"}
  *     + Subscribe:
@@ -302,6 +302,10 @@ void ensureMqttConnected() {
 void publishTelemetry() {
   if (!mqttClient.connected()) return;
 
+  static const String sessionId = String(ESP.random(), HEX) + "-" + String(ESP.random(), HEX);
+  static unsigned long sampleSequence = 0;
+  const String sampleId = sessionId + "-" + String(++sampleSequence);
+
   int raw = readRawSoil();
   int moisture = rawToPercent(raw);
   float lux = readLightLux();
@@ -309,12 +313,12 @@ void publishTelemetry() {
   String soilJson = String("{\"deviceId\":\"") + DEVICE_UID +
                     "\",\"type\":\"soil\",\"value\":" + String(moisture) +
                     ",\"raw\":" + String(raw) +
-                    ",\"unit\":\"%\"}";
+                    ",\"unit\":\"%\",\"sample_id\":\"" + sampleId + "\"}";
   mqttClient.publish(topicSoil.c_str(), soilJson.c_str(), false);
 
   String lightJson = String("{\"deviceId\":\"") + DEVICE_UID +
                      "\",\"type\":\"light\",\"value\":" + String(lux, 1) +
-                     ",\"unit\":\"lux\"}";
+                     ",\"unit\":\"lux\",\"sample_id\":\"" + sampleId + "\"}";
   mqttClient.publish(topicLight.c_str(), lightJson.c_str(), false);
 
   Serial.printf("[MQTT PUB] soil=%d%% (raw=%d) | light=%.1f lux\n", moisture, raw, lux);
