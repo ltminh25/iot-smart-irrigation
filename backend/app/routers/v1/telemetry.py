@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.deps import get_current_user
-from app.models.models import Telemetry, Device, Role, User
+from app.core.deps import can_view_device, get_current_user
+from app.models.models import Telemetry, Device, User
 from app.schemas.schemas import TelemetryResponse
 from typing import List, Optional
 from datetime import datetime
@@ -11,11 +11,10 @@ from datetime import datetime
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
 def verify_device_access(db: Session, current_user: User, device_id: int):
-    device = db.query(Device).filter(Device.id == device_id).first()
+    device = db.get(Device, device_id)
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
-    role = db.query(Role).filter(Role.id == current_user.role_id).first()
-    if role.name not in ("admin", "viewer") and device.owner_id != current_user.id:
+    if not can_view_device(db, current_user, device):
         raise HTTPException(status_code=403, detail="Forbidden")
 
 @router.get("/latest")

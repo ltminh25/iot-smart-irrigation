@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_role, get_device_or_403
+from app.core.deps import can_view_device, get_current_user, require_role, get_device_or_403
 from app.models.models import Device, Role, DeviceLifecycleLog, User
 from app.schemas.schemas import (
     DeviceCreate, DeviceResponse, DeviceUpdate, DeviceStatusUpdate, DeviceLockUpdate, DeviceLifecycleLogResponse
@@ -12,12 +12,6 @@ from app.services.device_service import generate_device_uid, generate_api_key, c
 from app.core.websocket import manager
 
 router = APIRouter(prefix="/devices", tags=["devices"])
-
-def can_view_device(db: Session, current_user: User, device: Device) -> bool:
-    role = db.query(Role).filter(Role.id == current_user.role_id).first()
-    if role and role.name in ("admin", "viewer"):
-        return True
-    return device.owner_id == current_user.id or device.device_uid == "esp8266-plant-01"
 
 @router.get("", response_model=List[DeviceResponse])
 def get_devices(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
