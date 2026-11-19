@@ -252,3 +252,10 @@ Ngay sau khi lưu thành công, hệ thống sẽ mở **Modal hướng dẫn On
   * Trạng thái thiết bị trong menu **Devices** sẽ chuyển từ `REGISTERED` sang `ACTIVE`.
   * Vào menu **Dashboard** hoặc bấm **"Xem chi tiết & Cảm biến"** để theo dõi biểu đồ dữ liệu độ ẩm đất và thực hiện bật/tắt máy bơm, đóng/mở mái che từ xa!
 
+## 📊 Slide thuyết trình nhóm
+
+Slide giới thiệu và trình bày dự án của nhóm.
+
+👉 [Xem slide thuyết trình trên Canva](https://canva.link/xwygyxck7cobjui)
+
+
