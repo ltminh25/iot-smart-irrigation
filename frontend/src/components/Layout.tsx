@@ -98,10 +98,6 @@ export const Layout: React.FC<Props> = ({ children }) => {
 
           <div className="app-header-user">
             <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#e0f2e8', color: '#176644' }} />
-            <div className="app-user-copy">
-              <span className="app-user-name">{user?.username || 'Người dùng'}</span>
-              <span className="app-user-role">{user?.role || 'member'}</span>
-            </div>
             <Badge
               color={user?.role === 'admin' ? '#20845a' : '#8a9b91'}
               text={user?.role === 'admin' ? 'Admin' : 'Member'}

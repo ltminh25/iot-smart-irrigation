@@ -46,7 +46,7 @@ const char* WIFI_PASS       = "12346789";
 
 const char* MQTT_BROKER     = "broker.hivemq.com";
 const int   MQTT_PORT       = 1883;
-const char* DEVICE_UID      = "esp8266-plant-01";
+const char* DEVICE_UID      = "esp8266-plant-g21fn5";
 const char* FW_VERSION      = "1.0.0";
 
 // ====== CẤU HÌNH CHÂN PHẦN CỨNG (NODE MCU ESP8266) ======
@@ -75,7 +75,15 @@ const unsigned long TELEMETRY_INTERVAL_MS = 2000;  // Gửi độ ẩm + ánh s�
 const unsigned long HEARTBEAT_INTERVAL_MS = 15000; // Gửi heartbeat mỗi 15 giây
 const unsigned long SERIAL_PRINT_MS       = 2000;  // In Serial mỗi 2 giây
 const unsigned long MQTT_RETRY_MS         = 5000;  // Thử kết nối lại MQTT mỗi 5 giây
-// =========================================================
+
+// ====== CẤU HÌNH TỰ ĐỘNG CỤC BỘ (TỰ HÀNH KỂ CẢ KHI TẮT / MẤT WIFI) ======
+const int   SOIL_AUTO_PUMP_THRESHOLD   = 30;    // Độ ẩm đất < 30% thì tự bật bơm 5s
+const float LIGHT_AUTO_CLOSE_LUX       = 7500;  // Ánh sáng > 7500 lux thì tự đóng mái che (120°)
+const float LIGHT_AUTO_OPEN_LUX        = 2000;  // Ánh sáng < 2000 lux thì tự mở mái che (60°)
+const unsigned long AUTO_PUMP_COOLDOWN_MS = 60000; // Nghỉ 60s giữa các lần tưới tự động để nước ngấm
+const unsigned long MANUAL_OVERRIDE_MS    = 30000; // Ưu tiên lệnh người dùng trong 30s trước khi tự hành tiếp
+const unsigned long AUTO_CHECK_INTERVAL_MS= 1000;  // Chu kỳ kiểm tra điều kiện tự hành: mỗi 1 giây
+// ========================================================================
 
 // Topic MQTT
 String topicSoil   = String("plant/") + DEVICE_UID + "/telemetry/soil";
@@ -104,6 +112,10 @@ unsigned long lastTelemetryMs = 0;
 unsigned long lastHeartbeatMs = 0;
 unsigned long lastPrintMs = 0;
 unsigned long lastMqttRetryMs = 0;
+
+unsigned long lastAutoPumpMs = 0;
+unsigned long lastManualCmdMs = 0;
+unsigned long lastAutoCheckMs = 0;
 
 // ------ ĐIỀU KHIỂN RELAY BƠM (KIỂU THẢ NỔI AN TOÀN) ------
 void setPump(bool on, unsigned long durationMs = MAX_PUMP_MS) {
@@ -253,6 +265,9 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   action.toLowerCase();
 
   unsigned long duration = extractJsonULong(msg, "duration", DEFAULT_PUMP_MS);
+
+  // Ghi nhận thời điểm nhận lệnh để tạm dừng tự hành cục bộ trong 30s
+  lastManualCmdMs = millis();
 
   if (action == "pump_on") {
     setPump(true, duration);
@@ -413,6 +428,7 @@ void handlePump() {
     server.send(400, "text/plain", "thieu tham so on=0|1");
     return;
   }
+  lastManualCmdMs = millis();
   bool on = (server.arg("on") == "1");
   setPump(on, DEFAULT_PUMP_MS);
   server.send(200, "application/json", statusJson());
@@ -422,6 +438,7 @@ void handleCurtain() {
     server.send(400, "text/plain", "thieu tham so act=open|close");
     return;
   }
+  lastManualCmdMs = millis();
   String act = server.arg("act");
   if (act == "open") {
     moveCurtain(SERVO_OPEN_DEG, "open");
@@ -429,6 +446,42 @@ void handleCurtain() {
     moveCurtain(SERVO_CLOSE_DEG, "closed");
   }
   server.send(200, "application/json", statusJson());
+}
+
+// ------ TỰ ĐỘNG RA QUYẾT ĐỊNH CỤC BỘ (HOẠT ĐỘNG CẢ KHI CÓ HOẶC MẤT WIFI) ------
+void handleAutoControl() {
+  unsigned long now = millis();
+  if (now - lastAutoCheckMs < AUTO_CHECK_INTERVAL_MS) return;
+  lastAutoCheckMs = now;
+
+  // Nếu người dùng vừa gửi lệnh thủ công (Web, MQTT, Serial) thì nhường quyền 30s
+  if (now - lastManualCmdMs < MANUAL_OVERRIDE_MS) return;
+
+  // 1. Tự động đóng/mở mái che theo cường độ ánh sáng BH1750
+  float lux = readLightLux();
+  if (lux > LIGHT_AUTO_CLOSE_LUX) {
+    if (curtainState != "closed") {
+      Serial.printf(">> [TỰ HÀNH] Nắng gắt (%.1f > %.0f lux) -> Tự động đóng mái che (120°)\n", lux, LIGHT_AUTO_CLOSE_LUX);
+      moveCurtain(SERVO_CLOSE_DEG, "closed");
+    }
+  } else if (lux < LIGHT_AUTO_OPEN_LUX && lux >= 0.0f) {
+    if (curtainState != "open") {
+      Serial.printf(">> [TỰ HÀNH] Ánh sáng dịu (%.1f < %.0f lux) -> Tự động mở mái che (60°)\n", lux, LIGHT_AUTO_OPEN_LUX);
+      moveCurtain(SERVO_OPEN_DEG, "open");
+    }
+  }
+
+  // 2. Tự động bật bơm 5 giây khi độ ẩm đất thấp (< 30%)
+  // Có cooldown 60s để chờ nước ngấm vào đất, tránh bơm liên tục
+  if (!pumpOn && (now - lastAutoPumpMs >= AUTO_PUMP_COOLDOWN_MS)) {
+    int raw = readRawSoil();
+    int moisture = rawToPercent(raw);
+    if (moisture < SOIL_AUTO_PUMP_THRESHOLD) {
+      Serial.printf(">> [TỰ HÀNH] Đất khô (%d%% < %d%%) -> Tự động bật máy bơm 5 giây\n", moisture, SOIL_AUTO_PUMP_THRESHOLD);
+      lastAutoPumpMs = now;
+      setPump(true, DEFAULT_PUMP_MS);
+    }
+  }
 }
 
 void setup() {
@@ -492,6 +545,9 @@ void loop() {
     mqttClient.loop();
   }
 
+  // Tự động kiểm tra và ra lệnh cục bộ (hoạt động kể cả khi mất WiFi hoặc có WiFi)
+  handleAutoControl();
+
   unsigned long now = millis();
 
   // Tự động detach Servo sau khi quay xong để chống rung & tiết kiệm dòng
@@ -510,11 +566,21 @@ void loop() {
   // Đọc lệnh nhanh qua Serial Monitor
   while (Serial.available()) {
     char c = Serial.read();
-    if (c == '1') setPump(true, DEFAULT_PUMP_MS);
-    else if (c == '0') setPump(false);
-    else if (c == 'o' || c == 'O') moveCurtain(SERVO_OPEN_DEG, "open");
-    else if (c == 'c' || c == 'C') moveCurtain(SERVO_CLOSE_DEG, "closed");
-    else if (c == 's' || c == 'S') Serial.println(statusJson());
+    if (c == '1') {
+      lastManualCmdMs = now;
+      setPump(true, DEFAULT_PUMP_MS);
+    } else if (c == '0') {
+      lastManualCmdMs = now;
+      setPump(false);
+    } else if (c == 'o' || c == 'O') {
+      lastManualCmdMs = now;
+      moveCurtain(SERVO_OPEN_DEG, "open");
+    } else if (c == 'c' || c == 'C') {
+      lastManualCmdMs = now;
+      moveCurtain(SERVO_CLOSE_DEG, "closed");
+    } else if (c == 's' || c == 'S') {
+      Serial.println(statusJson());
+    }
   }
 
   // Gửi dữ liệu Telemetry định kỳ lên Backend qua MQTT

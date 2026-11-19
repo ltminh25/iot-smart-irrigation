@@ -100,8 +100,10 @@ class CommandResponse(BaseModel):
     command_id: str
     device_id: int
     action: str
+    action_name: Optional[str] = None
     payload: Optional[str] = None
     issued_by: Optional[int] = None
+    username: Optional[str] = None
     status: str
     issued_at: datetime
     executed_at: Optional[datetime] = None

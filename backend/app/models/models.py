@@ -71,6 +71,22 @@ class Command(Base):
     executed_at = Column(DateTime, nullable=True)
     retry_count = Column(Integer, default=0)
 
+    user = relationship("User", foreign_keys=[issued_by])
+
+    @property
+    def username(self) -> str | None:
+        return self.user.username if self.user else None
+
+    @property
+    def action_name(self) -> str:
+        mapping = {
+            "pump_on": "Bật máy bơm (5s)",
+            "pump_off": "Tắt máy bơm",
+            "curtain_open": "Mở mái che (60°)",
+            "curtain_close": "Đóng mái che (120°)",
+        }
+        return mapping.get(self.action, self.action)
+
 class AlertRule(Base):
     __tablename__ = "alert_rules"
     id = Column(Integer, primary_key=True, index=True)

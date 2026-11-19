@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Table, Badge, Button, Select, Space, Tabs, Card, Tag } from 'antd';
-import { ReloadOutlined, HistoryOutlined, AlertOutlined } from '@ant-design/icons';
+import { ReloadOutlined, HistoryOutlined, AlertOutlined, UserOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { commandsApi } from '../api/commands';
 import { alertsApi } from '../api/alerts';
@@ -64,6 +64,21 @@ export const HistoryPage: React.FC = () => {
     }
   };
 
+  const getActionTag = (action: string, actionName?: string) => {
+    switch (action) {
+      case 'pump_on':
+        return <Tag color="green">{actionName || 'Bật máy bơm (5s)'}</Tag>;
+      case 'pump_off':
+        return <Tag color="volcano">{actionName || 'Tắt máy bơm'}</Tag>;
+      case 'curtain_open':
+        return <Tag color="blue">{actionName || 'Mở mái che (60°)'}</Tag>;
+      case 'curtain_close':
+        return <Tag color="orange">{actionName || 'Đóng mái che (120°)'}</Tag>;
+      default:
+        return <Tag color="cyan">{actionName || action}</Tag>;
+    }
+  };
+
   const commandColumns = [
     { title: 'Mã lệnh', dataIndex: 'command_id', key: 'command_id' },
     {
@@ -76,22 +91,44 @@ export const HistoryPage: React.FC = () => {
       }
     },
     { 
-      title: 'Hành động', 
+      title: 'Tên thao tác', 
       dataIndex: 'action', 
       key: 'action',
-      render: (act: string) => <Tag color="blue">{act}</Tag>
+      render: (act: string, record: any) => (
+        <Space direction="vertical" size={2}>
+          {getActionTag(act, record.action_name)}
+          <span style={{ fontSize: 11, color: '#8c8c8c' }}>{act}</span>
+        </Space>
+      )
+    },
+    { 
+      title: 'Tài khoản (Username)',
+      dataIndex: 'username',
+      key: 'username',
+      render: (username: string | null, record: any) => {
+        if (username) {
+          const color = username === 'admin' ? 'purple' : 'geekblue';
+          return (
+            <Tag color={color} icon={<UserOutlined />}>
+              <b>{username}</b>
+            </Tag>
+          );
+        }
+        if (record.issued_by) {
+          return (
+            <Tag color="cyan" icon={<UserOutlined />}>
+              User #{record.issued_by}
+            </Tag>
+          );
+        }
+        return <Tag color="default">🤖 Tự động (Hệ thống)</Tag>;
+      }
     },
     { 
       title: 'Trạng thái', 
       dataIndex: 'status', 
       key: 'status',
       render: (val: string) => <Badge status={getStatusColor(val) as any} text={val.toUpperCase()} />
-    },
-    { 
-      title: 'Người thực hiện',
-      dataIndex: 'issued_by',
-      key: 'issued_by',
-      render: (val: number | null) => val ? `User #${val}` : <Tag color="default">Hệ thống (Auto)</Tag>
     },
     { 
       title: 'Thời gian gửi', 

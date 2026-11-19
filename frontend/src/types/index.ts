@@ -19,7 +19,9 @@ export interface Telemetry {
 }
 export interface Command {
   id: number; command_id: string; device_id: number;
-  action: string; status: string; // pending|executed|failed
+  action: string; action_name?: string;
+  issued_by?: number | null; username?: string | null;
+  status: string; // pending|executed|failed
   issued_at: string; executed_at?: string;
   retry_count: number;
 }
